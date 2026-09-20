@@ -20,14 +20,20 @@ class LessonProgressOut(BaseModel):
 
 class LessonOut(BaseModel):
     """One row in the lesson list the Common Core / track pages actually
-    render and let the user click "mark complete" on -- distinct from
-    LessonProgressOut, which only covers already-completed lessons."""
+    render and let the user click into -- distinct from LessonProgressOut,
+    which only covers already-completed lessons. module_id/module_title are
+    None for lessons that aren't part of a named module (all of Common
+    Core, and any track lesson predating the Module concept) -- the
+    frontend groups by module_id when present, falls back to a flat list
+    when not."""
 
     id: int
     title: str
     estimated_minutes: int
     order_index: int
     completed: bool
+    module_id: int | None
+    module_title: str | None
 
 
 class UserProgressOut(BaseModel):

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.models.lesson import Lesson, UserLessonProgress
+from app.models.module import Module
 from app.models.track import Track
 from app.models.user import User
 from app.schemas.user import CompleteLessonRequest, LessonOut, LessonProgressOut, OnboardingRequest, TrackOut, UserProgressOut
@@ -71,7 +72,11 @@ def get_progress(user_id: int, user: User = Depends(get_current_user), db: Sessi
 
     common_core_lessons = db.query(Lesson).filter(Lesson.track_id.is_(None)).order_by(Lesson.order_index).all()
     track_lessons = (
-        db.query(Lesson).filter(Lesson.track_id == target.track_id).order_by(Lesson.order_index).all()
+        db.query(Lesson)
+        .filter(Lesson.track_id == target.track_id)
+        .outerjoin(Module, Lesson.module_id == Module.id)
+        .order_by(Module.order_index, Lesson.order_index)
+        .all()
         if target.track_id
         else []
     )
@@ -79,7 +84,15 @@ def get_progress(user_id: int, user: User = Depends(get_current_user), db: Sessi
     lessons_by_id = {l.id: l for l in common_core_lessons + track_lessons}
 
     def to_lesson_out(l: Lesson) -> LessonOut:
-        return LessonOut(id=l.id, title=l.title, estimated_minutes=l.estimated_minutes, order_index=l.order_index, completed=l.id in completed_lesson_ids)
+        return LessonOut(
+            id=l.id,
+            title=l.title,
+            estimated_minutes=l.estimated_minutes,
+            order_index=l.order_index,
+            completed=l.id in completed_lesson_ids,
+            module_id=l.module_id,
+            module_title=l.module.title if l.module else None,
+        )
 
     return UserProgressOut(
         user_id=target.id,

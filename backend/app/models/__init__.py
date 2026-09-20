@@ -5,6 +5,7 @@
 # configuration time.
 from app.models.user import User, UserRole  # noqa: F401
 from app.models.track import Track  # noqa: F401
+from app.models.module import Module  # noqa: F401
 from app.models.lesson import Lesson, UserLessonProgress  # noqa: F401
 from app.models.daily_pulse import DailyPulse, PulseStatus  # noqa: F401
 from app.models.prompt_attempt import PromptAttempt  # noqa: F401
@@ -14,6 +15,7 @@ __all__ = [
     "User",
     "UserRole",
     "Track",
+    "Module",
     "Lesson",
     "UserLessonProgress",
     "DailyPulse",

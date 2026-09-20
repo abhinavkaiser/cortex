@@ -16,6 +16,13 @@ class Lesson(Base):
     track_id: Mapped[int | None] = mapped_column(ForeignKey("tracks.id"), nullable=True)
     track: Mapped["Track | None"] = relationship(back_populates="lessons")
 
+    # Optional grouping within a track's curriculum (e.g. AI Leader's
+    # "Module 2: The Economics of AI & Vendor Strategy") -- NULL for
+    # Common Core and for any track lesson that isn't part of a named
+    # module (the original flat single-lesson-per-track seed data).
+    module_id: Mapped[int | None] = mapped_column(ForeignKey("modules.id"), nullable=True)
+    module: Mapped["Module | None"] = relationship(back_populates="lessons")
+
     slug: Mapped[str] = mapped_column(String(150), unique=True, nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     content_markdown: Mapped[str] = mapped_column(Text, default="")

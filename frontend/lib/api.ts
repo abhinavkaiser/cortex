@@ -1,4 +1,4 @@
-import type { DailyPulse, QuizAnswerResult, SandboxParams, SandboxResult, UserProgress } from "./types";
+import type { DailyPulse, LessonDetail, QuizAnswerResult, SandboxParams, SandboxResult, UserProgress } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -49,6 +49,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ lesson_id }),
     }),
+
+  getLesson: (lessonId: number) => request<LessonDetail>(`/api/lessons/${lessonId}`),
 
   getTodayPulse: () => request<DailyPulse>("/api/daily-pulse/today"),
 

@@ -19,4 +19,5 @@ class Track(Base):
 
     users: Mapped[list["User"]] = relationship(back_populates="track")
     lessons: Mapped[list["Lesson"]] = relationship(back_populates="track")
+    modules: Mapped[list["Module"]] = relationship(back_populates="track", order_by="Module.order_index")
     daily_pulses: Mapped[list["DailyPulse"]] = relationship(back_populates="track")

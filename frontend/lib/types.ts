@@ -23,6 +23,18 @@ export interface Lesson {
   estimated_minutes: number;
   order_index: number;
   completed: boolean;
+  module_id: number | null;
+  module_title: string | null;
+}
+
+export interface LessonDetail {
+  id: number;
+  title: string;
+  content_markdown: string;
+  estimated_minutes: number;
+  completed: boolean;
+  track_slug: TrackSlug | null;
+  module_title: string | null;
 }
 
 export interface UserProgress {
