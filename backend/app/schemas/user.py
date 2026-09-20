@@ -18,10 +18,23 @@ class LessonProgressOut(BaseModel):
     completed_at: datetime
 
 
+class LessonOut(BaseModel):
+    """One row in the lesson list the Common Core / track pages actually
+    render and let the user click "mark complete" on -- distinct from
+    LessonProgressOut, which only covers already-completed lessons."""
+
+    id: int
+    title: str
+    estimated_minutes: int
+    order_index: int
+    completed: bool
+
+
 class UserProgressOut(BaseModel):
     """Response for GET /api/users/{id}/progress -- everything the frontend
     needs to decide what to render: onboarding vs. Common Core vs. track
-    curriculum, plus a completion percentage for a progress bar."""
+    curriculum, plus the actual lesson list (not just completed ones) to
+    render and act on, plus a completion percentage for a progress bar."""
 
     user_id: int
     email: EmailStr
@@ -34,6 +47,8 @@ class UserProgressOut(BaseModel):
     track_lessons_total: int
     track_lessons_completed: int
 
+    common_core_lessons: list[LessonOut]
+    track_lessons: list[LessonOut]
     completed_lessons: list[LessonProgressOut]
 
 

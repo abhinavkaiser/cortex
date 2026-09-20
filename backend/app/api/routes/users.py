@@ -8,7 +8,7 @@ from app.core.db import get_db
 from app.models.lesson import Lesson, UserLessonProgress
 from app.models.track import Track
 from app.models.user import User
-from app.schemas.user import CompleteLessonRequest, LessonProgressOut, OnboardingRequest, TrackOut, UserProgressOut
+from app.schemas.user import CompleteLessonRequest, LessonOut, LessonProgressOut, OnboardingRequest, TrackOut, UserProgressOut
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -69,10 +69,17 @@ def get_progress(user_id: int, user: User = Depends(get_current_user), db: Sessi
     progress_rows = db.query(UserLessonProgress).filter(UserLessonProgress.user_id == user_id).all()
     completed_lesson_ids = {p.lesson_id for p in progress_rows}
 
-    common_core_lessons = db.query(Lesson).filter(Lesson.track_id.is_(None)).all()
-    track_lessons = db.query(Lesson).filter(Lesson.track_id == target.track_id).all() if target.track_id else []
+    common_core_lessons = db.query(Lesson).filter(Lesson.track_id.is_(None)).order_by(Lesson.order_index).all()
+    track_lessons = (
+        db.query(Lesson).filter(Lesson.track_id == target.track_id).order_by(Lesson.order_index).all()
+        if target.track_id
+        else []
+    )
 
     lessons_by_id = {l.id: l for l in common_core_lessons + track_lessons}
+
+    def to_lesson_out(l: Lesson) -> LessonOut:
+        return LessonOut(id=l.id, title=l.title, estimated_minutes=l.estimated_minutes, order_index=l.order_index, completed=l.id in completed_lesson_ids)
 
     return UserProgressOut(
         user_id=target.id,
@@ -84,6 +91,8 @@ def get_progress(user_id: int, user: User = Depends(get_current_user), db: Sessi
         common_core_lessons_completed=sum(1 for l in common_core_lessons if l.id in completed_lesson_ids),
         track_lessons_total=len(track_lessons),
         track_lessons_completed=sum(1 for l in track_lessons if l.id in completed_lesson_ids),
+        common_core_lessons=[to_lesson_out(l) for l in common_core_lessons],
+        track_lessons=[to_lesson_out(l) for l in track_lessons],
         completed_lessons=[
             LessonProgressOut(lesson_id=p.lesson_id, lesson_title=lessons_by_id[p.lesson_id].title, completed_at=p.completed_at)
             for p in progress_rows

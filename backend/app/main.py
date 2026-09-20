@@ -37,3 +37,18 @@ def on_startup():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/")
+def root():
+    """This is an API-only backend -- the actual app UI lives on the Next.js
+    frontend (http://localhost:3000 in dev). A bare 404 on `/` here reads as
+    "the app is broken" to anyone who lands on this port directly, so this
+    exists purely to point them at the right place and at the interactive
+    API docs, rather than leaving the root route undefined."""
+    return {
+        "service": "Cortex AI API",
+        "frontend": "http://localhost:3000",
+        "docs": "/docs",
+        "health": "/health",
+    }

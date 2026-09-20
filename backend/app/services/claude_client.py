@@ -62,6 +62,30 @@ def _rough_token_count(text: str) -> int:
     return max(1, round(len(text) / 4))
 
 
+def _schema_example(schema: dict) -> dict:
+    """Converts a flat JSON-Schema properties dict into a placeholder JSON
+    *instance* for the prompt -- showing the model the raw schema document
+    itself (with "type"/"properties"/"required" keys) is genuinely
+    ambiguous: it's happened, live, that the model echoed the schema's own
+    meta-structure back instead of producing an instance of it. An example
+    with the real target keys at the top level has no such ambiguity. Only
+    needs to handle the shapes this app's own schemas actually use (flat
+    string/integer/array-of-string properties), not arbitrary JSON Schema."""
+    example: dict = {}
+    for key, spec in schema.get("properties", {}).items():
+        t = spec.get("type")
+        if t == "string":
+            example[key] = spec.get("description", "...")
+        elif t in ("integer", "number"):
+            example[key] = 0
+        elif t == "array":
+            item_type = spec.get("items", {}).get("type", "string")
+            example[key] = [f"<{item_type} 1>", f"<{item_type} 2>", "..."]
+        else:
+            example[key] = spec.get("description", "...")
+    return example
+
+
 def _extract_json(raw: str):
     obj_match = re.search(r"\{[\s\S]*\}", raw)
     arr_match = re.search(r"\[[\s\S]*\]", raw)
@@ -98,9 +122,13 @@ def generate(
     parse-and-retry, not a native API guarantee (see module docstring)."""
     effective_prompt = prompt
     if response_schema:
+        required = response_schema.get("required", list(response_schema.get("properties", {}).keys()))
+        example = _schema_example(response_schema)
         effective_prompt = (
-            f"{prompt}\n\nRespond with ONLY valid JSON matching this schema, no markdown code fences, "
-            f"no explanation before or after:\n{json.dumps(response_schema)}"
+            f"{prompt}\n\nRespond with ONLY a single JSON object -- no markdown code fences, no explanation "
+            f"before or after, nothing but the JSON itself. It must have exactly these top-level keys: "
+            f"{', '.join(required)}. Here is the shape to fill in with real content (the values below are "
+            f"placeholders showing the expected type, not example output to imitate):\n{json.dumps(example, indent=2)}"
         )
 
     started = time.monotonic()
@@ -128,7 +156,16 @@ def generate(
             )
 
         try:
-            _extract_json(raw)  # validate parseability before returning; caller does the real parse
+            parsed = _extract_json(raw)  # validate parseability + shape before returning; caller does the real parse
+            missing = [k for k in required if not isinstance(parsed, dict) or k not in parsed]
+            if missing:
+                # Valid JSON, but not an instance of the requested shape --
+                # this is exactly the failure mode that motivated
+                # _schema_example: without this check, a schema-echo-back
+                # (or any other wrong-shaped-but-valid JSON) would return
+                # "successfully" here and crash the caller with a KeyError
+                # instead of triggering a repair re-prompt.
+                raise ValueError(f"missing required key(s) {missing}")
             latency_ms = round((time.monotonic() - started) * 1000)
             return GenerationResult(
                 text=raw,
@@ -136,12 +173,12 @@ def generate(
                 output_tokens=_rough_token_count(raw),
                 latency_ms=latency_ms,
             )
-        except ValueError:
+        except ValueError as err:
             if attempt >= retries:
-                raise ValueError(f"Model did not return valid JSON after retry: {raw[:150]!r}")
+                raise ValueError(f"Model did not return valid JSON after retry: {raw[:150]!r} ({err})")
             effective_prompt = (
-                f"{effective_prompt}\n\nYour previous reply could not be parsed as JSON "
-                f"(it began: {raw[:150]!r}). Reply again with ONLY the requested JSON."
+                f"{effective_prompt}\n\nYour previous reply was not usable ({err}) -- it began: {raw[:150]!r}. "
+                f"Reply again with ONLY a JSON object containing exactly these keys: {', '.join(required)}."
             )
 
     raise last_err or ValueError(f"Model did not return valid JSON: {last_raw[:150]!r}")

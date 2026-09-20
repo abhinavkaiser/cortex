@@ -17,6 +17,14 @@ export interface LessonProgress {
   completed_at: string;
 }
 
+export interface Lesson {
+  id: number;
+  title: string;
+  estimated_minutes: number;
+  order_index: number;
+  completed: boolean;
+}
+
 export interface UserProgress {
   user_id: number;
   email: string;
@@ -27,6 +35,8 @@ export interface UserProgress {
   common_core_lessons_completed: number;
   track_lessons_total: number;
   track_lessons_completed: number;
+  common_core_lessons: Lesson[];
+  track_lessons: Lesson[];
   completed_lessons: LessonProgress[];
 }
 

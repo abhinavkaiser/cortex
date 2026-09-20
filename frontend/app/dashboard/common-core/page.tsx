@@ -1,34 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import type { UserProgress } from "@/lib/types";
+import { LessonList } from "@/components/LessonList";
 
 export default function CommonCorePage() {
   const router = useRouter();
   const [progress, setProgress] = useState<UserProgress | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     const userId = Number(localStorage.getItem("user_id"));
     if (!userId) {
       router.replace("/");
       return;
     }
-    api.getProgress(userId).then((p) => {
-      if (!p.track) {
-        router.replace("/onboarding");
-        return;
-      }
-      // Common Core already done -- this page is a one-time gate, not
-      // somewhere a returning user should land again.
-      if (p.common_core_completed) {
-        router.replace(`/dashboard/tracks/${p.track.slug}`);
-        return;
-      }
-      setProgress(p);
-    });
+    const p = await api.getProgress(userId);
+    if (!p.track) {
+      router.replace("/onboarding");
+      return;
+    }
+    // Common Core already done -- this page is a one-time gate, not
+    // somewhere a returning user should land again. Also fires right after
+    // marking the last lesson complete, since that flips this flag -- the
+    // user lands straight on their track page instead of staring at a
+    // now-pointless 100% Common Core screen.
+    if (p.common_core_completed) {
+      router.replace(`/dashboard/tracks/${p.track.slug}`);
+      return;
+    }
+    setProgress(p);
   }, [router]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   if (!progress) return <main className="px-6 py-12 text-sm text-slate-500">Loading...</main>;
 
@@ -49,6 +56,8 @@ export default function CommonCorePage() {
       <p className="mt-2 text-sm text-slate-500">
         {progress.common_core_lessons_completed} / {progress.common_core_lessons_total} lessons complete
       </p>
+
+      <LessonList lessons={progress.common_core_lessons} onCompleted={load} />
     </main>
   );
 }
