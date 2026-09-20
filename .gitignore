@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# SQLite
+*.db
+*.db-journal
+
+# Secrets
+.env
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+
+# OS
+.DS_Store

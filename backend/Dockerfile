@@ -1,0 +1,16 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# SQLite db file lives in this volume-mounted dir in docker-compose.yml so
+# it survives container restarts/rebuilds.
+VOLUME ["/app/data"]
+ENV DATABASE_URL=sqlite:////app/data/ai_academy.db
+
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
