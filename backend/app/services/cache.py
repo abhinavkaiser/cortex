@@ -1,4 +1,4 @@
-"""Semantic cache: before paying for a real Gemini call, check whether a
+"""Semantic cache: before running another real Claude CLI call, check whether a
 sufficiently similar prompt (same model/temperature) was already answered
 recently. Cosine similarity over embeddings stored in SQLite -- see
 core/config.py and models/semantic_cache.py for why this isn't a real
@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.semantic_cache import SemanticCacheEntry
-from app.services import gemini_client
+from app.services import claude_client
 from datetime import datetime
 
 settings = get_settings()
@@ -40,7 +40,7 @@ def lookup(db: Session, prompt: str, model: str, temperature: float) -> Semantic
     if not candidates:
         return None
 
-    query_embedding = gemini_client.embed(prompt)
+    query_embedding = claude_client.embed(prompt)
 
     best_entry, best_score = None, 0.0
     for entry in candidates:
@@ -57,7 +57,7 @@ def lookup(db: Session, prompt: str, model: str, temperature: float) -> Semantic
 
 
 def store(db: Session, prompt: str, model: str, temperature: float, response_text: str, input_tokens: int, output_tokens: int) -> None:
-    embedding = gemini_client.embed(prompt)
+    embedding = claude_client.embed(prompt)
     entry = SemanticCacheEntry(
         prompt_text=prompt,
         prompt_embedding=embedding,

@@ -1,12 +1,16 @@
-// Mirrors backend/app/services/token_cost.py's rough estimator and pricing
-// table -- this is a live, client-side PREVIEW only (updates on every
-// keystroke, before any API call happens). The number that actually gets
-// billed/recorded always comes from the real API response's usage_metadata,
-// via /api/sandbox/execute -- see SandboxResult in lib/types.ts.
+// Mirrors backend/app/services/token_cost.py's estimator and pricing table
+// -- this is a live, client-side PREVIEW only (updates on every keystroke,
+// before any CLI call happens). Running on a Claude subscription (not a
+// metered API key -- see claude_client.py), so this is illustrative "what
+// this would cost on metered billing" using Anthropic's published API
+// pricing, not a real charge. The number recorded on the actual attempt
+// (via /api/sandbox/execute -- see SandboxResult in lib/types.ts) uses the
+// same ~4-chars/token estimate, since the CLI doesn't report exact counts.
 
 const PRICE_PER_1K_TOKENS: Record<string, { input: number; output: number }> = {
-  "gemini-2.0-flash": { input: 0.000075, output: 0.0003 },
-  "gemini-2.0-pro": { input: 0.00125, output: 0.005 },
+  "claude-haiku-4-5-20251001": { input: 0.0008, output: 0.004 },
+  "claude-sonnet-4-6": { input: 0.003, output: 0.015 },
+  "claude-opus-4-7": { input: 0.015, output: 0.075 },
 };
 
 function roughTokenCount(text: string): number {
@@ -15,7 +19,7 @@ function roughTokenCount(text: string): number {
 
 export function TokenCostMeter({ prompt, model, maxOutputTokens }: { prompt: string; model: string; maxOutputTokens: number }) {
   const inputTokens = roughTokenCount(prompt);
-  const price = PRICE_PER_1K_TOKENS[model] ?? { input: 0.0001, output: 0.0004 };
+  const price = PRICE_PER_1K_TOKENS[model] ?? { input: 0.003, output: 0.015 };
 
   // Worst-case cost assumes the model uses its full max_output_tokens
   // budget -- a ceiling, not a prediction, since real output length varies.
@@ -28,7 +32,7 @@ export function TokenCostMeter({ prompt, model, maxOutputTokens }: { prompt: str
       </span>
       <span className="text-slate-700">|</span>
       <span>
-        up to <span className="text-slate-200">${worstCaseCost.toFixed(5)}</span> this call
+        up to <span className="text-slate-200">${worstCaseCost.toFixed(5)}</span> equivalent (flat-rate subscription, not billed)
       </span>
     </div>
   );

@@ -8,7 +8,7 @@ from app.core.db import get_db
 from app.models.prompt_attempt import PromptAttempt
 from app.models.user import User
 from app.schemas.sandbox import SandboxExecuteRequest, SandboxExecuteResponse
-from app.services import cache, gemini_client, token_cost
+from app.services import cache, claude_client, token_cost
 
 router = APIRouter(prefix="/api/sandbox", tags=["sandbox"])
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/sandbox", tags=["sandbox"])
 def execute_prompt(body: SandboxExecuteRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Powers the Prompt Playground. Checks the semantic cache first --
     identical/near-identical prompts at the same model+temperature reuse a
-    prior real response instead of paying for another Gemini call."""
+    prior real response instead of running another CLI call (cheap on a flat-rate subscription, but still slower than a cache hit)."""
     started = time.monotonic()
 
     cache_hit = cache.lookup(db, body.prompt, body.model, body.temperature)
@@ -49,7 +49,7 @@ def execute_prompt(body: SandboxExecuteRequest, user: User = Depends(get_current
             served_from_cache=True,
         )
 
-    result = gemini_client.generate(
+    result = claude_client.generate(
         body.prompt,
         model=body.model,
         temperature=body.temperature,

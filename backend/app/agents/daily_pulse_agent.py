@@ -1,4 +1,4 @@
-"""The Daily Pulse pipeline: ingest AI news -> extract signal via Gemini,
+"""The Daily Pulse pipeline: ingest AI news -> extract signal via Claude,
 tailored per learning track -> evaluate quality -> persist as
 draft/published/flagged.
 
@@ -19,7 +19,7 @@ from app.agents import evals
 from app.agents.news_ingest import RawArticle, fetch_recent_articles
 from app.models.daily_pulse import DailyPulse, PulseStatus
 from app.models.track import Track
-from app.services import gemini_client
+from app.services import claude_client
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -71,7 +71,7 @@ def generate_and_evaluate(db: Session, track_slug: str, pulse_date: date | None 
     if not articles:
         raise RuntimeError("No articles could be fetched from any configured RSS feed -- nothing to generate a pulse from.")
 
-    generation = gemini_client.generate(
+    generation = claude_client.generate(
         _build_prompt(articles, track_slug),
         temperature=0.4,  # low-ish: this is factual digest content, not creative writing
         response_schema=PULSE_SCHEMA,
@@ -103,7 +103,7 @@ def generate_and_evaluate(db: Session, track_slug: str, pulse_date: date | None 
         status=status,
         eval_score=eval_score,
         eval_notes=eval_notes,
-        generation_model=settings.gemini_model,
+        generation_model=settings.claude_model,
     )
     db.add(pulse)
     db.commit()

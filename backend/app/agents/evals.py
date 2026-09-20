@@ -12,7 +12,7 @@ PulseStatus). Two layers, deliberately kept separate:
 
 from dataclasses import dataclass
 
-from app.services import gemini_client
+from app.services import claude_client
 
 PUBLISH_THRESHOLD = 0.7
 
@@ -76,7 +76,7 @@ Choices: {quiz_choices}
 
 Score each dimension 0.0-1.0. Be genuinely critical -- a summary that adds claims not supported by the source articles should score low on accuracy_score regardless of how well-written it reads."""
 
-    result = gemini_client.generate(prompt, temperature=0.0, response_schema=JUDGE_SCHEMA)
+    result = claude_client.generate(prompt, temperature=0.0, response_schema=JUDGE_SCHEMA)
     import json
 
     parsed = json.loads(result.text)

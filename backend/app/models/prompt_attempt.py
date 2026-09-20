@@ -21,7 +21,7 @@ class PromptAttempt(Base):
     prompt_text: Mapped[str] = mapped_column(Text, nullable=False)
     response_text: Mapped[str] = mapped_column(Text, default="")
 
-    model: Mapped[str] = mapped_column(default="gemini-2.0-flash")
+    model: Mapped[str] = mapped_column(default="claude-sonnet-4-6")
     temperature: Mapped[float] = mapped_column(Float, default=0.7)
     top_p: Mapped[float] = mapped_column(Float, default=0.95)
     max_output_tokens: Mapped[int] = mapped_column(Integer, default=1024)

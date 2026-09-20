@@ -7,7 +7,7 @@ import { ParamControls } from "./ParamControls";
 import { TokenCostMeter } from "./TokenCostMeter";
 
 const DEFAULT_PARAMS = {
-  model: "gemini-2.0-flash",
+  model: "claude-sonnet-4-6",
   temperature: 0.7,
   top_p: 0.95,
   max_output_tokens: 1024,

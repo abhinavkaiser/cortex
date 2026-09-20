@@ -5,7 +5,7 @@ interface Params {
   max_output_tokens: number;
 }
 
-const MODELS = ["gemini-2.0-flash", "gemini-2.0-pro"];
+const MODELS = ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"];
 
 export function ParamControls({ params, onChange }: { params: Params; onChange: (p: Params) => void }) {
   return (

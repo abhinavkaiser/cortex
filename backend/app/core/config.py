@@ -9,15 +9,15 @@ class Settings(BaseSettings):
     # goes through SQLAlchemy, not raw SQLite-specific SQL.
     database_url: str = "sqlite:///./ai_academy.db"
 
-    gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash"
+    # Runs on the local Claude subscription via the `claude` CLI -- see
+    # services/claude_client.py -- not a billed API key. `claude_bin` only
+    # needs overriding if the CLI isn't on PATH under that exact name.
+    claude_bin: str = "claude"
+    claude_model: str = "claude-sonnet-4-6"
 
-    # Semantic cache + RAG over lesson content: no pgvector/Milvus/Pinecone
-    # here (see services/vector_store.py) -- embeddings are stored as JSON
-    # blobs in SQLite and compared in Python. Fine at this scale; swap for a
-    # real vector DB if the lesson corpus or cache grows large enough that
-    # brute-force cosine similarity in Python becomes the bottleneck.
-    embedding_model: str = "text-embedding-004"
+    # Local embeddings (sentence-transformers), no API key either -- see
+    # claude_client.py's embed().
+    embedding_model: str = "all-MiniLM-L6-v2"
     semantic_cache_similarity_threshold: float = 0.92
 
     daily_pulse_rss_feeds: list[str] = [

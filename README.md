@@ -11,8 +11,10 @@ in-browser Prompt Playground sandbox.
 - **Backend:** Python, FastAPI
 - **Database:** SQLite via SQLAlchemy (swapped in for the originally-specced
   Postgres -- see "Scoping notes" below for what that trades away)
-- **AI:** Gemini API (`google-genai` SDK) for generation, evaluation
-  (LLM-as-judge), and embeddings (semantic cache)
+- **AI:** Runs on a local **Claude subscription** via the `claude` CLI
+  (`claude --print`) -- flat-rate, no billed API key to configure. Used for
+  generation and evaluation (LLM-as-judge). Embeddings (semantic cache) run
+  locally too, via `sentence-transformers` -- no API for those either.
 
 ## Directory structure
 
@@ -36,7 +38,7 @@ cortex-ai/
 │   │   │   ├── evals.py               # deterministic checks + LLM-as-judge scoring
 │   │   │   └── mcp_tools.py           # exposes the above as MCP tools over stdio
 │   │   ├── services/
-│   │   │   ├── gemini_client.py       # all real LLM/embedding calls go through here
+│   │   │   ├── claude_client.py       # all real LLM/embedding calls go through here (claude CLI + local embeddings)
 │   │   │   ├── cache.py               # semantic cache (cosine similarity over embeddings)
 │   │   │   └── token_cost.py          # token/cost estimation
 │   │   └── core/
@@ -92,7 +94,7 @@ stubs.
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # fill in GEMINI_API_KEY
+cp .env.example .env   # no API key needed -- runs on your local `claude` CLI login
 python scripts/seed.py
 uvicorn app.main:app --reload
 
@@ -120,6 +122,21 @@ Being direct about this rather than letting it look more finished than it is:
   SQLite, compared via brute-force cosine similarity in Python. Fine at
   cache-table scale; the first thing to swap out if the corpus grows large
   enough for that to matter.
+- **Runs on a Claude subscription, not a billed API key.** `claude_client.py`
+  shells out to the local `claude` CLI (`claude --print`) instead of
+  calling a metered API -- flat-rate, nothing to configure beyond having
+  `claude` installed and logged in. Two real consequences: (1) there's no
+  native structured-output/schema flag the way an API SDK would offer, so
+  JSON output is enforced by prompt instruction + parse + one repair
+  re-prompt on failure (see `_extract_json`/`generate()`); (2) token counts
+  are a ~4-chars/token estimate everywhere, including on stored
+  `PromptAttempt` rows, since the CLI doesn't report exact usage on stdout
+  -- `token_cost.py`'s dollar figures are therefore illustrative ("what
+  this would've cost on metered billing"), not a real charge.
+- **Embeddings are local too** (`sentence-transformers`, `all-MiniLM-L6-v2`)
+  -- no API key for those either, runs entirely on-device. Same model
+  family already used elsewhere in this environment for embeddings, picked
+  for consistency.
 - **MCP is real but not on the hot path.** `agents/mcp_tools.py` wraps the
   news-fetch and pulse-generation functions as genuine MCP tools (using the
   real `mcp` SDK, runnable standalone over stdio) so an external MCP host
