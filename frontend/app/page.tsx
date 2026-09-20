@@ -1,70 +1,46 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { api } from "@/lib/api";
 
-export default function LoginPage() {
-  const router = useRouter();
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+// Login removed for now (single-user local demo) -- auto-authenticates a
+// fixed demo account instead of showing a form. The backend's real
+// auth/JWT system is untouched (see app/api/routes/auth.py) -- bringing
+// login back later is just restoring a form that POSTs to the same
+// /api/auth/login and /api/auth/register endpoints this already calls,
+// not rebuilding anything.
+const DEMO_EMAIL = "demo@cortex.ai";
+const DEMO_PASSWORD = "demopass123";
 
-  async function submit() {
-    setSubmitting(true);
-    setError("");
-    try {
-      const res = mode === "login" ? await api.login(email, password) : await api.register(email, password, fullName);
-      localStorage.setItem("access_token", res.access_token);
-      localStorage.setItem("user_id", String(res.user_id));
-      router.push(res.needs_onboarding ? "/onboarding" : "/dashboard/common-core");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
-    } finally {
-      setSubmitting(false);
+export default function AutoLoginPage() {
+  const router = useRouter();
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function go() {
+      try {
+        let res;
+        try {
+          res = await api.login(DEMO_EMAIL, DEMO_PASSWORD);
+        } catch {
+          // First run on a fresh DB -- the demo account doesn't exist yet.
+          res = await api.register(DEMO_EMAIL, DEMO_PASSWORD, "Demo User");
+        }
+        localStorage.setItem("access_token", res.access_token);
+        localStorage.setItem("user_id", String(res.user_id));
+        router.replace(res.needs_onboarding ? "/onboarding" : "/dashboard/common-core");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not reach the backend.");
+      }
     }
-  }
+    go();
+  }, [router]);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
+    <main className="mx-auto flex min-h-screen max-w-sm flex-col items-center justify-center px-6 text-center">
       <h1 className="text-2xl font-semibold">Cortex AI</h1>
-      <p className="mt-1 text-sm text-slate-500">Interactive AI training, one track at a time.</p>
-
-      <div className="mt-8 space-y-3">
-        {mode === "register" && (
-          <input
-            placeholder="Full name"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            className="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm"
-          />
-        )}
-        <input
-          placeholder="Email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm"
-        />
-        <input
-          placeholder="Password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm"
-        />
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        <button onClick={submit} disabled={submitting} className="w-full rounded-lg bg-brand px-4 py-2.5 text-sm font-medium disabled:opacity-40">
-          {submitting ? "..." : mode === "login" ? "Log in" : "Create account"}
-        </button>
-      </div>
-
-      <button onClick={() => setMode(mode === "login" ? "register" : "login")} className="mt-4 text-xs text-slate-500 hover:text-slate-300">
-        {mode === "login" ? "Need an account? Register" : "Already have an account? Log in"}
-      </button>
+      {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : <p className="mt-2 text-sm text-slate-500">Loading...</p>}
     </main>
   );
 }
