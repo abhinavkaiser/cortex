@@ -1,23 +1,69 @@
 #!/usr/bin/env python
 """Seeds the three tracks and a handful of Common Core + track lessons, plus
-two example instructor-authored Courses (distinct from the fixed Tracks --
+three example instructor-authored Courses (distinct from the fixed Tracks --
 see models/course.py) so the general-purpose course system is clickable
 end-to-end after a fresh `python scripts/seed.py`, not just empty scaffolding.
-Run once against a fresh database.
+The third course specifically exercises everything added on top of the
+original course system: video/document/link lesson blocks, all four quiz
+question types (including a short_answer one, with a real pending attempt
+already sitting in the instructor's grading queue), and a
+certificate_validity_days expiry. Run once against a fresh database.
 """
 
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.db import Base, SessionLocal, engine
 from app.core.security import hash_password
-from app.models.course import Course, Quiz
-from app.models.lesson import Lesson
+from app.models.course import Course, Enrollment, Quiz, QuizAttempt
+from app.models.lesson import Lesson, UserLessonProgress
 from app.models.module import Module
 from app.models.track import Track
 from app.models.user import User, UserRole
+
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static" / "course-uploads"
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
+DEMO_PDF_NAME = "ai-media-literacy-handout-demo.pdf"
+
+LEARNER = {"email": "learner@cortex.ai", "password": "learnerpass123", "full_name": "Jordan Lee"}
+
+
+def _write_demo_pdf() -> None:
+    """A real, small PDF for the seeded 'document' lesson block to point
+    at -- generated with reportlab (the same library
+    services/certificate_pdf.py uses) rather than checking in a binary
+    file, so there's nothing to keep in sync if the demo copy changes."""
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+
+    path = STATIC_DIR / DEMO_PDF_NAME
+    c = canvas.Canvas(str(path), pagesize=letter)
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(72, 720, "AI Media Literacy -- Course Handout")
+    c.setFont("Helvetica", 11)
+    lines = [
+        "This one-page handout is seeded demo content for the 'document' lesson",
+        "block type -- a real PDF served from backend/static/course-uploads/,",
+        "the same place POST /api/courses/{id}/upload saves instructor uploads.",
+        "",
+        "Three things worth remembering when a document is the primary lesson",
+        "content rather than a supplement: (1) always keep a download link",
+        "visible, not just an inline viewer -- some browsers and most mobile",
+        "apps handle embedded PDFs poorly; (2) a document lesson still needs a",
+        "real estimated_minutes, learners skim PDFs slower than prose; (3) if",
+        "the source document changes, upload a new one and update the lesson's",
+        "content_blocks -- there's no versioning, the old file just becomes",
+        "unreferenced.",
+    ]
+    y = 690
+    for line in lines:
+        c.drawString(72, y, line)
+        y -= 18
+    c.showPage()
+    c.save()
 
 TRACKS = [
     {"slug": "leader", "name": "AI Leader", "description": "Strategic and organizational AI literacy for execs and managers."},
@@ -337,11 +383,116 @@ COURSES = [
             },
         ],
     },
+    {
+        # Exercises everything added on top of the original course system:
+        # video/document/link lesson blocks, all four quiz question types,
+        # and a certificate that expires -- see the module docstring above.
+        "slug": "ai-media-literacy",
+        "title": "AI Media Literacy: Video, Docs & Assessment",
+        "category": "AI Skills",
+        "description": "A short course that's also a live demo of this platform's richer lesson formats (video, PDF, external links) and quiz question types (multi-select, true/false, short answer) -- not just prose chapters.",
+        "certificate_validity_days": 365,
+        "chapters": [
+            {
+                "title": "Watch, Read, Explore",
+                "objective": "See each new lesson format used for real, not just described.",
+                "lessons": [
+                    {
+                        "slug": "how-neural-networks-actually-work",
+                        "title": "How Neural Networks Actually Work",
+                        "estimated_minutes": 20,
+                        "content_markdown": "A video lesson -- see the embedded player below for the full explanation.",
+                        "content_blocks": [
+                            {"type": "text", "markdown": "This lesson is a **video block** -- a well-known, freely available explainer rather than platform-produced content, to show what embedding a real third-party video looks like."},
+                            {
+                                "type": "video",
+                                "title": "But what is a neural network? (3Blue1Brown)",
+                                "url": "https://www.youtube.com/watch?v=aircAruvnKk",
+                                "transcript": "A visual, intuitive walkthrough of how a simple neural network recognizes handwritten digits -- neurons as numbers, weights and biases as knobs, and gradient descent as the process that tunes them.",
+                            },
+                        ],
+                    },
+                    {
+                        "slug": "course-handout-pdf",
+                        "title": "Course Handout (PDF)",
+                        "estimated_minutes": 5,
+                        "content_markdown": "A document lesson -- open the embedded PDF below or use the download link.",
+                        "content_blocks": [
+                            {"type": "text", "markdown": "This lesson is a **document block** -- an uploaded PDF, embedded with a download fallback for anything that can't render it inline."},
+                            {"type": "document", "title": "AI Media Literacy -- Course Handout", "url": f"/static/course-uploads/{DEMO_PDF_NAME}", "filename": DEMO_PDF_NAME},
+                        ],
+                    },
+                    {
+                        "slug": "further-reading-ml-glossary",
+                        "title": "Further Reading: the ML Glossary",
+                        "estimated_minutes": 8,
+                        "content_markdown": "A link lesson -- points outward rather than hosting the content itself.",
+                        "content_blocks": [
+                            {"type": "text", "markdown": "This lesson is a **link block** -- a clearly-labeled outbound card, not an auto-embed, since this app doesn't control or host the destination."},
+                            {
+                                "type": "link",
+                                "title": "Google's Machine Learning Glossary",
+                                "url": "https://developers.google.com/machine-learning/glossary",
+                                "description": "A maintained, external reference for ML terminology -- worth bookmarking outside this course rather than duplicating here.",
+                            },
+                        ],
+                    },
+                ],
+            },
+            {
+                "title": "Applied Assessment",
+                "objective": "See the newer quiz question types in a real, gradeable quiz.",
+                "lessons": [],
+                "quiz": {
+                    "title": "Applied Assessment Quiz",
+                    "passing_score": 70,
+                    "randomize_questions": True,
+                    "max_attempts": 3,
+                    "questions": [
+                        {
+                            "type": "multiple_choice",
+                            "question": "What's the most reliable signal that an AI feature is genuinely working well after launch?",
+                            "choices": [
+                                "The offline eval score stays flat",
+                                "How often users immediately undo, edit, or ignore the output",
+                                "The number of features shipped that quarter",
+                                "Positive sentiment in the release announcement",
+                            ],
+                            "correct_index": 1,
+                        },
+                        {
+                            "type": "true_false",
+                            "question": "A confidence score on its own is usually enough for a user to judge whether an AI answer is trustworthy.",
+                            "choices": ["True", "False"],
+                            "correct_index": 1,
+                        },
+                        {
+                            "type": "multi_select",
+                            "question": "Which of these are true about the video/document/link lesson blocks added in this course? (select all that apply)",
+                            "choices": [
+                                "A learner can watch an embedded video without leaving the lesson",
+                                "Every external link is automatically embedded and unlabeled",
+                                "An uploaded PDF still has a download fallback if the inline viewer fails",
+                                "A document lesson must also include a multiple-choice quiz",
+                            ],
+                            "correct_indices": [0, 2],
+                        },
+                        {
+                            "type": "short_answer",
+                            "question": "In 2-3 sentences, describe a real (or realistic) AI feature and one specific way its design accounts for the model sometimes being wrong.",
+                            "sample_answer": "Example: a support-ticket triage assistant flags low-confidence classifications for human review instead of auto-routing them, so a wrong guess costs a second look, not a misrouted ticket.",
+                        },
+                    ],
+                },
+            },
+        ],
+    },
 ]
 
 
 def main():
     Base.metadata.create_all(bind=engine)
+    _write_demo_pdf()
     db = SessionLocal()
     try:
         track_by_slug = {}
@@ -398,6 +549,7 @@ def main():
                 category=course_data["category"],
                 instructor_id=instructor.id,
                 is_published=True,
+                certificate_validity_days=course_data.get("certificate_validity_days"),
             )
             db.add(course)
             db.flush()
@@ -421,6 +573,7 @@ def main():
                             slug=lesson_data["slug"],
                             title=lesson_data["title"],
                             content_markdown=lesson_data["content_markdown"],
+                            content_blocks=lesson_data.get("content_blocks", []),
                             order_index=lesson_index,
                             estimated_minutes=lesson_data["estimated_minutes"],
                         )
@@ -429,21 +582,97 @@ def main():
 
                 quiz_data = chapter_data.get("quiz")
                 if quiz_data:
+                    questions = [
+                        {
+                            "type": q.get("type", "multiple_choice"),
+                            "question": q["question"],
+                            "choices": q.get("choices", []),
+                            "correct_index": q.get("correct_index"),
+                            "correct_indices": q.get("correct_indices", []),
+                            "sample_answer": q.get("sample_answer", ""),
+                        }
+                        for q in quiz_data["questions"]
+                    ]
                     db.add(
                         Quiz(
                             module_id=module.id,
                             title=quiz_data["title"],
                             passing_score=quiz_data["passing_score"],
-                            questions=quiz_data["questions"],
+                            questions=questions,
+                            randomize_questions=quiz_data.get("randomize_questions", False),
+                            max_attempts=quiz_data.get("max_attempts"),
                         )
                     )
                     quiz_count += 1
 
         db.commit()
+
+        # Demo learner account, enrolled in the media-literacy course with
+        # its video/document/link lessons already marked read and one real
+        # PENDING quiz attempt sitting in the instructor's grading queue --
+        # "clickable end to end" for the grading-queue feature means there
+        # has to be something waiting in it, not just an empty state.
+        learner = db.query(User).filter(User.email == LEARNER["email"]).first()
+        if not learner:
+            learner = User(
+                email=LEARNER["email"],
+                hashed_password=hash_password(LEARNER["password"]),
+                full_name=LEARNER["full_name"],
+                role=UserRole.LEARNER,
+            )
+            db.add(learner)
+            db.flush()
+
+        media_course = db.query(Course).filter(Course.slug == "ai-media-literacy").first()
+        pending_attempt_seeded = False
+        if media_course and not db.query(Enrollment).filter(Enrollment.user_id == learner.id, Enrollment.course_id == media_course.id).first():
+            db.add(Enrollment(user_id=learner.id, course_id=media_course.id))
+            db.flush()
+
+            watch_read_explore = next((m for m in media_course.modules if m.title == "Watch, Read, Explore"), None)
+            if watch_read_explore:
+                for lesson in watch_read_explore.lessons:
+                    db.add(UserLessonProgress(user_id=learner.id, lesson_id=lesson.id))
+
+            applied_assessment = next((m for m in media_course.modules if m.title == "Applied Assessment"), None)
+            if applied_assessment and applied_assessment.quiz:
+                quiz = applied_assessment.quiz
+                # Answers keyed by ORIGINAL question index, matching how
+                # submit_attempt stores them (see quizzes.py) -- correct on
+                # every auto-gradable question, so the only thing blocking
+                # this attempt from passing is the short_answer review.
+                answers = []
+                for q in quiz.questions:
+                    qtype = q.get("type", "multiple_choice")
+                    if qtype == "multi_select":
+                        answers.append(q.get("correct_indices", []))
+                    elif qtype == "short_answer":
+                        answers.append(
+                            "Our internal support-ticket triage assistant flags low-confidence classifications for a "
+                            "human to double-check instead of auto-routing them, so a wrong guess costs a second look, "
+                            "not a misrouted ticket."
+                        )
+                    else:
+                        answers.append(q.get("correct_index"))
+                db.add(
+                    QuizAttempt(
+                        user_id=learner.id,
+                        quiz_id=quiz.id,
+                        answers=answers,
+                        score=100,  # provisional -- computed over the 3 auto-gradable questions, all correct
+                        passed=False,  # forced False while pending, same as submit_attempt does
+                        status="pending",
+                        attempted_at=datetime.utcnow() - timedelta(hours=2),
+                    )
+                )
+                pending_attempt_seeded = True
+
+        db.commit()
         print(
             f"Seeded {len(TRACKS)} tracks, {len(COMMON_CORE_LESSONS)} common-core lessons, "
             f"{sum(len(v) for v in TRACK_LESSONS.values())} track lessons, "
-            f"{course_count} courses ({chapter_count} chapters, {lesson_count} lessons, {quiz_count} quizzes)."
+            f"{course_count} courses ({chapter_count} chapters, {lesson_count} lessons, {quiz_count} quizzes), "
+            f"demo learner {'with' if pending_attempt_seeded else 'without new'} a pending short-answer attempt queued for grading."
         )
     finally:
         db.close()
