@@ -22,7 +22,7 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # the Next.js dev server; add the deployed frontend origin here too
+    allow_origins=["http://localhost:3000", "https://cortex.xiox.in"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
