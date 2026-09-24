@@ -50,6 +50,40 @@ export default function LessonPage() {
   const [cardIndex, setCardIndex] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
   const [speaking, setSpeaking] = useState(false);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+
+  // Voices load async (sometimes not at all until the first voiceschanged
+  // event, especially in Chrome) -- grab whatever's available now and again
+  // whenever the list changes, so the best one is ready by the time
+  // toggleListen runs instead of falling back to whatever the browser
+  // picks by default (usually its lowest-quality robotic voice).
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const update = () => setVoices(window.speechSynthesis.getVoices());
+    update();
+    window.speechSynthesis.addEventListener("voiceschanged", update);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", update);
+  }, []);
+
+  // Prefers Google/Microsoft's network-quality voices and anything
+  // explicitly labelled "Natural"/"Enhanced"/"Premium" over the default
+  // local synthesizer, which is what actually sounds robotic.
+  const bestVoice = useMemo(() => {
+    if (voices.length === 0) return null;
+    const english = voices.filter((v) => v.lang.startsWith("en"));
+    const pool = english.length > 0 ? english : voices;
+    const score = (v: SpeechSynthesisVoice) => {
+      const name = v.name.toLowerCase();
+      let s = 0;
+      if (/natural|enhanced|premium|neural/.test(name)) s += 3;
+      if (/google/.test(name)) s += 2;
+      if (/microsoft/.test(name) && !/desktop/.test(name)) s += 2;
+      if (v.localService === false) s += 1; // network voices tend to sound better than the bundled local one
+      if (v.lang === "en-US" || v.lang === "en-GB") s += 1;
+      return s;
+    };
+    return pool.slice().sort((a, b) => score(b) - score(a))[0];
+  }, [voices]);
 
   const load = useCallback(async () => {
     try {
@@ -108,6 +142,9 @@ export default function LessonPage() {
       .join(". ");
     if (!text) return;
     const utterance = new SpeechSynthesisUtterance(text);
+    if (bestVoice) utterance.voice = bestVoice;
+    utterance.rate = 0.95; // the default 1.0 reads slightly clipped/rushed on most synthesizers
+    utterance.pitch = 1;
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
     window.speechSynthesis.speak(utterance);
