@@ -39,8 +39,8 @@ export default function CoursesCatalogPage() {
     <main className="mx-auto max-w-5xl px-6 py-12">
       <h1 className="text-2xl font-semibold">Courses</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        Instructor-authored courses -- separate from the AI Leader/Practitioner/Developer tracks. Enroll in any course, work
-        through its chapters at your own pace, and earn a certificate on completion.
+        Enroll in any course -- including AI Leader, AI Practitioner, AI Developer, and AI Fundamentals -- work through
+        its chapters at your own pace, and earn a certificate on completion.
       </p>
 
       {courses.length === 0 ? (

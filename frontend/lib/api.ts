@@ -7,7 +7,6 @@ import type {
   CompleteResponse,
   CourseDetail,
   CourseSummary,
-  Curriculum,
   DailyPulse,
   EmbedResponse,
   GradeAttemptResult,
@@ -22,7 +21,6 @@ import type {
   RosterRow,
   SandboxParams,
   SandboxResult,
-  TrackSummary,
   UserCourse,
   UserProgress,
 } from "./types";
@@ -66,34 +64,32 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   login: (email: string, password: string) =>
-    request<{ access_token: string; user_id: number; needs_onboarding: boolean }>("/api/auth/login", {
+    request<{ access_token: string; user_id: number }>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
 
   register: (email: string, password: string, full_name: string) =>
-    request<{ access_token: string; user_id: number; needs_onboarding: boolean }>("/api/auth/register", {
+    request<{ access_token: string; user_id: number }>("/api/auth/register", {
       method: "POST",
       body: JSON.stringify({ email, password, full_name }),
-    }),
-
-  completeOnboarding: (track_slug: string) =>
-    request<{ ok: boolean; track: unknown }>("/api/users/onboarding", {
-      method: "POST",
-      body: JSON.stringify({ track_slug }),
     }),
 
   getProgress: (userId: number) => request<UserProgress>(`/api/users/${userId}/progress`),
 
   completeLesson: (lesson_id: number) =>
-    request<{ ok: boolean; common_core_completed: boolean }>("/api/users/lessons/complete", {
+    request<{ ok: boolean; course_completed: boolean }>("/api/users/lessons/complete", {
       method: "POST",
       body: JSON.stringify({ lesson_id }),
     }),
 
   getLesson: (lessonId: number) => request<LessonDetail>(`/api/lessons/${lessonId}`),
 
-  getTodayPulse: () => request<DailyPulse>("/api/daily-pulse/today"),
+  // Every track's published pulse for today, not just one -- see
+  // backend/app/api/routes/daily_pulse.py's list_today_pulses docstring
+  // for why (learners no longer have a single assigned track to scope
+  // this to).
+  getTodayPulse: () => request<DailyPulse[]>("/api/daily-pulse/today"),
 
   answerQuiz: (pulse_id: number, selected_index: number) =>
     request<QuizAnswerResult>("/api/daily-pulse/answer", {
@@ -130,10 +126,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ goal }),
     }),
-
-  getTracks: () => request<TrackSummary[]>("/api/tracks"),
-
-  getCurriculum: (slug: string) => request<Curriculum>(`/api/tracks/${slug}/curriculum`),
 
   // ---- General-purpose courses -----------------------------------------
 

@@ -62,7 +62,7 @@ export default function LanguageModelLoopPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
       <div className="flex items-center justify-between text-xs text-ink-muted">
-        <Link href="/dashboard/common-core" className="hover:text-ink">
+        <Link href="/dashboard/courses/ai-fundamentals" className="hover:text-ink">
           ← Back
         </Link>
         <Link href="/dashboard/explore/language-model" className="hover:text-ink">

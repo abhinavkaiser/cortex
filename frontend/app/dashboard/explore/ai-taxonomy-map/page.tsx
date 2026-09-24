@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import type { Curriculum, LessonDetail } from "@/lib/types";
+import type { CourseDetail, LessonDetail } from "@/lib/types";
 import { segmentBlocks } from "@/lib/lessonSections";
 import { toCardSlides } from "@/lib/cardSlides";
 import { CardDeck } from "@/components/explore/CardDeck";
@@ -28,8 +28,11 @@ export default function AiTaxonomyMapPage() {
   useEffect(() => {
     (async () => {
       try {
-        const curriculum: Curriculum = await api.getCurriculum("leader");
-        const match = curriculum.modules.flatMap((m) => m.lessons).find((l) => l.title === LESSON_TITLE);
+        // The AI Leader curriculum lives as the migrated "ai-leader" course
+        // now (see scripts/migrate_tracks_to_courses.py) -- was
+        // api.getCurriculum("leader") back when Leader was a Track.
+        const course: CourseDetail = await api.getCourse("ai-leader");
+        const match = course.chapters.flatMap((c) => c.lessons).find((l) => l.title === LESSON_TITLE);
         if (!match) {
           setError(`Could not find "${LESSON_TITLE}" in the current curriculum.`);
           return;
@@ -56,7 +59,7 @@ export default function AiTaxonomyMapPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/dashboard/tracks/leader" className="text-xs text-ink-muted hover:text-ink">
+      <Link href="/dashboard/courses/ai-leader" className="text-xs text-ink-muted hover:text-ink">
         ← Back to AI Leader curriculum
       </Link>
 

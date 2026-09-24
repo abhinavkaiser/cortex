@@ -29,9 +29,10 @@ export default function AutoLoginPage() {
         }
         localStorage.setItem("access_token", res.access_token);
         localStorage.setItem("user_id", String(res.user_id));
-        // Open catalog now -- every course is browsable regardless of
-        // onboarding/assignment, so there's no gate to route through here.
-        router.replace("/dashboard/tracks");
+        // Straight to the course catalog -- there's no onboarding/track
+        // assignment step anymore (see README's "Formerly Tracks, now migrated into Courses"),
+        // every course is just browsable and enrollable from here.
+        router.replace("/dashboard/courses");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not reach the backend.");
       }

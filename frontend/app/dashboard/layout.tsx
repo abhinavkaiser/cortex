@@ -9,11 +9,12 @@ import type { UserRole } from "@/lib/types";
 // There was no shared top-level nav before the course system landed --
 // every /dashboard/* page was a standalone screen with no way to get from
 // one section to another except typing a URL. Added here, once, rather
-// than duplicated per page, since it's now needed to link Tracks / Daily
-// Pulse / Sandbox / Explore / Courses / Certificates together, and to gate
-// the Instructor link behind role.
+// than duplicated per page, since it's now needed to link Daily Pulse /
+// Sandbox / Courses / Certificates together, and to gate the Instructor
+// link behind role. Tracks/Onboarding links removed -- see README's
+// "Formerly Tracks, now migrated into Courses": the fixed 3-Track curriculum now lives inside
+// Courses (GET /dashboard/courses), so Courses is the sole content catalog.
 const NAV_LINKS: { href: string; label: string }[] = [
-  { href: "/dashboard/tracks", label: "Tracks" },
   { href: "/dashboard/courses", label: "Courses" },
   { href: "/dashboard/daily-pulse", label: "Daily Pulse" },
   { href: "/dashboard/sandbox", label: "Sandbox" },
@@ -43,7 +44,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen bg-white">
       <header className="sticky top-0 z-10 border-b border-line bg-white">
         <nav className="mx-auto flex max-w-5xl items-center gap-6 px-6 py-3">
-          <Link href="/dashboard/tracks" className="text-lg font-semibold text-ink">
+          <Link href="/dashboard/courses" className="text-lg font-semibold text-ink">
             Cortex AI
           </Link>
           <div className="flex flex-1 items-center gap-5 text-sm">

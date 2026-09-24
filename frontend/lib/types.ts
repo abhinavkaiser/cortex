@@ -3,19 +3,12 @@
 // from the FastAPI OpenAPI spec (openapi-typescript) is the natural next
 // step once the API stabilizes.
 
+// Tracks are no longer a learner-facing concept (see README's "Courses vs.
+// Tracks") -- the former AI Leader/Practitioner/Developer curriculum now
+// lives as ordinary Courses. TrackSlug survives only because DailyPulse
+// (an unrelated feature -- see backend/app/models/track.py) is still
+// generated and labeled per track.
 export type TrackSlug = "leader" | "practitioner" | "developer";
-
-export interface Track {
-  id: number;
-  slug: TrackSlug;
-  name: string;
-}
-
-export interface LessonProgress {
-  lesson_id: number;
-  lesson_title: string;
-  completed_at: string;
-}
 
 export interface Lesson {
   id: number;
@@ -150,32 +143,28 @@ export interface LessonDetail {
   content_blocks: LessonBlock[];
   estimated_minutes: number;
   completed: boolean;
-  track_slug: TrackSlug | null;
   module_title: string | null;
 }
 
 export type UserRole = "learner" | "instructor" | "admin";
 
+// Identity/role lookup only now -- see backend UserProgressOut's docstring.
+// Per-course progress lives at UserCourse/CourseDetail instead, since a
+// learner can be enrolled in any number of courses, not one track.
 export interface UserProgress {
   user_id: number;
   email: string;
   role: UserRole;
-  track: Track | null;
-  common_core_completed: boolean;
-  common_core_completed_at: string | null;
-  common_core_lessons_total: number;
-  common_core_lessons_completed: number;
-  track_lessons_total: number;
-  track_lessons_completed: number;
-  common_core_lessons: Lesson[];
-  track_lessons: Lesson[];
-  completed_lessons: LessonProgress[];
 }
 
 export interface DailyPulse {
   id: number;
   pulse_date: string;
   track_slug: TrackSlug | null;
+  // Label for the track this pulse was written for -- see api.ts's
+  // getTodayPulse, which now returns one pulse per track (a user no
+  // longer has a single assigned track to scope this to).
+  track_name: string | null;
   summary: string;
   sandbox_exercise: string;
   quiz_question: string;
@@ -248,30 +237,11 @@ export interface AgentResponse {
   final_answer: string;
 }
 
-export interface TrackSummary {
-  slug: TrackSlug;
-  name: string;
-  description: string;
-  lesson_count: number;
-}
-
-export interface CurriculumModule {
-  id: number;
-  title: string;
-  objective: string;
-  lessons: Lesson[];
-}
-
-export interface Curriculum {
-  track: TrackSummary;
-  modules: CurriculumModule[];
-  ungrouped_lessons: Lesson[];
-}
-
 // ---- General-purpose Course system (mirrors backend/app/schemas/course.py)
-// Coexists with Track/Curriculum above -- a Course is arbitrary,
-// instructor-authored content built from the same Module/Lesson tables,
-// not a Track. See backend/app/models/course.py for the schema rationale.
+// The only content model now -- see backend/app/models/course.py. Used to
+// coexist with a separate Track/Curriculum system; that curriculum was
+// merged in as ordinary Courses (see README's "Formerly Tracks, now
+// migrated into Courses").
 
 export interface CourseSummary {
   id: number;
