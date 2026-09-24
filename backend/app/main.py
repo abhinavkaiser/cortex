@@ -37,6 +37,7 @@ app.include_router(explore.router)
 app.include_router(tracks.router)
 app.include_router(courses.router)
 app.include_router(quizzes.router)
+app.include_router(quizzes.quiz_attempts_router)
 app.include_router(certificates.router)
 
 
