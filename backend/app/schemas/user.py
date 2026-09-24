@@ -44,6 +44,7 @@ class UserProgressOut(BaseModel):
 
     user_id: int
     email: EmailStr
+    role: str  # "learner" | "instructor" | "admin" -- the frontend's only source for role-gating nav/pages (see UserRole)
     track: TrackOut | None
     common_core_completed: bool
     common_core_completed_at: datetime | None

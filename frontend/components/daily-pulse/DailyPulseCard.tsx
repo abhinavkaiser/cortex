@@ -19,8 +19,8 @@ export function DailyPulseCard() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="text-sm text-slate-500">Loading today&apos;s pulse...</div>;
-  if (error) return <div className="rounded-xl border border-slate-800 p-5 text-sm text-slate-400">{error}</div>;
+  if (loading) return <div className="text-sm text-ink-muted">Loading today&apos;s pulse...</div>;
+  if (error) return <div className="rounded-xl border border-line p-5 text-sm text-ink-muted">{error}</div>;
   if (!pulse) return null;
 
   return (
@@ -29,9 +29,9 @@ export function DailyPulseCard() {
         <div className="text-xs font-medium uppercase tracking-wide text-brand">Daily Pulse -- {pulse.pulse_date}</div>
         <p className="mt-2 whitespace-pre-line leading-relaxed">{pulse.summary}</p>
         {pulse.source_urls.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
+          <div className="mt-3 flex flex-wrap gap-3 text-xs text-ink-muted">
             {pulse.source_urls.map((url) => (
-              <a key={url} href={url} target="_blank" rel="noreferrer" className="hover:text-slate-300">
+              <a key={url} href={url} target="_blank" rel="noreferrer" className="hover:text-ink">
                 Source ↗
               </a>
             ))}

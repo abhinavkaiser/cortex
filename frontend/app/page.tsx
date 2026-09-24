@@ -29,7 +29,9 @@ export default function AutoLoginPage() {
         }
         localStorage.setItem("access_token", res.access_token);
         localStorage.setItem("user_id", String(res.user_id));
-        router.replace(res.needs_onboarding ? "/onboarding" : "/dashboard/common-core");
+        // Open catalog now -- every course is browsable regardless of
+        // onboarding/assignment, so there's no gate to route through here.
+        router.replace("/dashboard/tracks");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not reach the backend.");
       }
@@ -40,7 +42,7 @@ export default function AutoLoginPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col items-center justify-center px-6 text-center">
       <h1 className="text-2xl font-semibold">Cortex AI</h1>
-      {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : <p className="mt-2 text-sm text-slate-500">Loading...</p>}
+      {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : <p className="mt-2 text-sm text-ink-muted">Loading...</p>}
     </main>
   );
 }

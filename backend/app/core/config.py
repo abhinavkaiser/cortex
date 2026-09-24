@@ -25,6 +25,16 @@ class Settings(BaseSettings):
         "https://www.technologyreview.com/feed/",
     ]
 
+    # Only used by the image-generation MCP server (app/agents/image_mcp.py)
+    # for lesson illustrations -- real, metered, billed APIs, unlike
+    # everything else in this app. Optional: None until set in .env, and
+    # nothing in the running app itself ever touches either key. Mirrors
+    # the exact same DALL-E-first-then-Gemini-fallback pattern already
+    # proven in xiot's imageGenService.js -- DALL-E 3 for quality, Gemini
+    # 2.5 Flash Image (free tier) as a no-cost fallback.
+    openai_api_key: str | None = None
+    gemini_api_key: str | None = None
+
     jwt_secret: str = "change-me-in-.env"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24

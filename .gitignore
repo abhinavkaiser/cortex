@@ -16,6 +16,7 @@ __pycache__/
 node_modules/
 .next/
 out/
+tsconfig.tsbuildinfo
 
 # OS
 .DS_Store

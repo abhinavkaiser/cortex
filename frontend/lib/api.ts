@@ -1,6 +1,30 @@
-import type { DailyPulse, LessonDetail, QuizAnswerResult, SandboxParams, SandboxResult, UserProgress } from "./types";
+import type {
+  AgentResponse,
+  Certificate,
+  CertificateVerify,
+  Chapter,
+  CompleteResponse,
+  CourseDetail,
+  CourseSummary,
+  Curriculum,
+  DailyPulse,
+  EmbedResponse,
+  LessonDetail,
+  QuizAnswerResult,
+  QuizAttemptResult,
+  QuizAttemptSummary,
+  QuizQuestionInput,
+  QuizTake,
+  RagResponse,
+  RosterRow,
+  SandboxParams,
+  SandboxResult,
+  TrackSummary,
+  UserCourse,
+  UserProgress,
+} from "./types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 function authHeaders(): HeadersInit {
   const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
@@ -16,6 +40,20 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       ...options.headers,
     },
   });
+  // A stored token that's expired or otherwise invalid (access tokens are
+  // valid 24h, see access_token_expire_minutes) previously just threw the
+  // raw "Invalid or expired token" string at whatever page happened to be
+  // open, with no way to recover short of manually clearing localStorage.
+  // Every page hits this the same way, so the fix belongs here, once, not
+  // in each page's own error handling. Excludes the auth endpoints
+  // themselves so a genuine wrong-password 401 during login still throws
+  // normally instead of bouncing straight back to "/".
+  if (res.status === 401 && !path.startsWith("/api/auth/") && typeof window !== "undefined") {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user_id");
+    window.location.href = "/";
+    throw new Error("Session expired -- redirecting to log back in.");
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.detail || `Request failed: ${res.status}`);
@@ -65,4 +103,83 @@ export const api = {
       method: "POST",
       body: JSON.stringify(params),
     }),
+
+  embedWords: (items: string[]) =>
+    request<EmbedResponse>("/api/explore/embed", {
+      method: "POST",
+      body: JSON.stringify({ items }),
+    }),
+
+  completeText: (prefix: string) =>
+    request<CompleteResponse>("/api/explore/complete", {
+      method: "POST",
+      body: JSON.stringify({ prefix }),
+    }),
+
+  ragQuery: (question: string) =>
+    request<RagResponse>("/api/explore/rag", {
+      method: "POST",
+      body: JSON.stringify({ question }),
+    }),
+
+  runAgent: (goal: string) =>
+    request<AgentResponse>("/api/explore/agent", {
+      method: "POST",
+      body: JSON.stringify({ goal }),
+    }),
+
+  getTracks: () => request<TrackSummary[]>("/api/tracks"),
+
+  getCurriculum: (slug: string) => request<Curriculum>(`/api/tracks/${slug}/curriculum`),
+
+  // ---- General-purpose courses -----------------------------------------
+
+  getCourses: () => request<CourseSummary[]>("/api/courses"),
+
+  getCourse: (slug: string) => request<CourseDetail>(`/api/courses/${slug}`),
+
+  createCourse: (body: { slug: string; title: string; description: string; category: string }) =>
+    request<CourseSummary>("/api/courses", { method: "POST", body: JSON.stringify(body) }),
+
+  updateCourse: (courseId: number, body: { title?: string; description?: string; category?: string; is_published?: boolean }) =>
+    request<CourseSummary>(`/api/courses/${courseId}`, { method: "PATCH", body: JSON.stringify(body) }),
+
+  createChapter: (courseId: number, body: { title: string; objective: string; order_index: number }) =>
+    request<Chapter>(`/api/courses/${courseId}/chapters`, { method: "POST", body: JSON.stringify(body) }),
+
+  createCourseLesson: (
+    courseId: number,
+    moduleId: number,
+    body: { slug: string; title: string; content_markdown: string; order_index: number; estimated_minutes: number }
+  ) => request(`/api/courses/${courseId}/chapters/${moduleId}/lessons`, { method: "POST", body: JSON.stringify(body) }),
+
+  upsertChapterQuiz: (courseId: number, moduleId: number, body: { title: string; passing_score: number; questions: QuizQuestionInput[] }) =>
+    request(`/api/courses/${courseId}/chapters/${moduleId}/quiz`, { method: "POST", body: JSON.stringify(body) }),
+
+  enrollInCourse: (courseId: number, due_at?: string | null) =>
+    request<{ ok: boolean; already_enrolled: boolean }>(`/api/courses/${courseId}/enroll`, {
+      method: "POST",
+      body: JSON.stringify({ due_at: due_at ?? null }),
+    }),
+
+  unenrollFromCourse: (courseId: number) => request<{ ok: boolean }>(`/api/courses/${courseId}/enroll`, { method: "DELETE" }),
+
+  getRoster: (courseId: number) => request<RosterRow[]>(`/api/courses/${courseId}/roster`),
+
+  getUserCourses: (userId: number) => request<UserCourse[]>(`/api/users/${userId}/courses`),
+
+  // ---- Quizzes ------------------------------------------------------------
+
+  getQuiz: (quizId: number) => request<QuizTake>(`/api/quizzes/${quizId}`),
+
+  submitQuizAttempt: (quizId: number, answers: number[]) =>
+    request<QuizAttemptResult>(`/api/quizzes/${quizId}/attempt`, { method: "POST", body: JSON.stringify({ answers }) }),
+
+  getQuizAttempts: (quizId: number) => request<QuizAttemptSummary[]>(`/api/quizzes/${quizId}/attempts`),
+
+  // ---- Certificates ---------------------------------------------------------
+
+  getMyCertificates: () => request<Certificate[]>("/api/certificates/me"),
+
+  verifyCertificate: (code: string) => request<CertificateVerify>(`/api/certificates/verify/${code}`),
 };

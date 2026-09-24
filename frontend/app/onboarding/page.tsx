@@ -37,7 +37,7 @@ export default function OnboardingPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16">
       <h1 className="text-3xl font-semibold">Which track fits you best?</h1>
-      <p className="mt-2 text-slate-400">
+      <p className="mt-2 text-ink-muted">
         You&apos;ll start with the shared Common Core either way -- this just decides what unlocks after that.
       </p>
 
@@ -47,16 +47,16 @@ export default function OnboardingPage() {
             key={t.slug}
             onClick={() => setSelected(t.slug)}
             className={`rounded-xl border p-5 text-left transition ${
-              selected === t.slug ? "border-brand bg-brand/10" : "border-slate-800 hover:border-slate-700"
+              selected === t.slug ? "border-brand bg-brand/10" : "border-line hover:border-brand/40"
             }`}
           >
             <div className="font-medium">{t.name}</div>
-            <div className="mt-1 text-sm text-slate-400">{t.description}</div>
+            <div className="mt-1 text-sm text-ink-muted">{t.description}</div>
           </button>
         ))}
       </div>
 
-      {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
+      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
       <button
         onClick={confirm}

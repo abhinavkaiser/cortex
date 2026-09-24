@@ -5,10 +5,16 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Udemy-style light palette (per owner request -- no dark theme).
+        // brand: primary actions/links/progress only, not decoration.
         brand: {
-          DEFAULT: "#6366f1",
-          dark: "#4338ca",
+          DEFAULT: "#5624d0",
+          dark: "#4318a5",
         },
+        ink: "#1c1d1f", // body text
+        "ink-muted": "#6a6f73", // secondary/muted text
+        surface: "#f7f9fa", // card/panel background, one step off white
+        line: "#d1d7dc", // borders/dividers
       },
     },
   },

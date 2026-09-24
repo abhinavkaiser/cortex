@@ -27,19 +27,109 @@ export interface Lesson {
   module_title: string | null;
 }
 
+// Discriminated union mirroring backend/app/agents/lesson_blocks.py's
+// BLOCK_SCHEMA -- the closed set of shapes validate_and_clean_blocks()
+// guarantees every stored block matches, so this can be strict rather than
+// defensive.
+export interface TextBlock {
+  type: "text";
+  markdown: string;
+}
+
+export interface CalloutBlock {
+  type: "callout";
+  style: "insight" | "warning";
+  markdown: string;
+}
+
+export interface CheckBlock {
+  type: "check";
+  question: string;
+  choices: string[];
+  correct_index: number;
+  explanation: string;
+}
+
+export interface TiersDiagram {
+  type: "diagram";
+  shape: "tiers";
+  title: string;
+  items: { label: string; description: string }[];
+}
+
+export interface ComparisonDiagram {
+  type: "diagram";
+  shape: "comparison";
+  title: string;
+  columns: string[];
+  rows: { label: string; values: string[] }[];
+}
+
+export interface MatrixDiagram {
+  type: "diagram";
+  shape: "matrix";
+  title: string;
+  x_label: string;
+  y_label: string;
+  quadrants: { position: "top-left" | "top-right" | "bottom-left" | "bottom-right"; label: string; description: string }[];
+}
+
+export interface CycleDiagram {
+  type: "diagram";
+  shape: "cycle";
+  title: string;
+  steps: { label: string; description: string }[];
+}
+
+export type DiagramBlockType = TiersDiagram | ComparisonDiagram | MatrixDiagram | CycleDiagram;
+
+export interface CalculatorInput {
+  key: string;
+  label: string;
+  default: number;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+}
+
+export interface CalculatorBlock {
+  type: "calculator";
+  title: string;
+  description: string;
+  inputs: CalculatorInput[];
+  formula: string;
+  output_label: string;
+  output_format: "currency" | "number" | "percent";
+}
+
+export interface ImageBlock {
+  type: "image";
+  url: string;
+  alt: string;
+  caption: string;
+  attribution: string;
+}
+
+export type LessonBlock = TextBlock | CalloutBlock | CheckBlock | DiagramBlockType | CalculatorBlock | ImageBlock;
+
 export interface LessonDetail {
   id: number;
   title: string;
   content_markdown: string;
+  content_blocks: LessonBlock[];
   estimated_minutes: number;
   completed: boolean;
   track_slug: TrackSlug | null;
   module_title: string | null;
 }
 
+export type UserRole = "learner" | "instructor" | "admin";
+
 export interface UserProgress {
   user_id: number;
   email: string;
+  role: UserRole;
   track: Track | null;
   common_core_completed: boolean;
   common_core_completed_at: string | null;
@@ -85,4 +175,199 @@ export interface SandboxResult {
   estimated_cost_usd: number;
   latency_ms: number;
   served_from_cache: boolean;
+}
+
+export interface EmbedPoint {
+  label: string;
+  x: number;
+  y: number;
+}
+
+export interface EmbedResponse {
+  points: EmbedPoint[];
+  closest_pair: [number, number];
+  closest_similarity: number;
+  farthest_pair: [number, number];
+  farthest_similarity: number;
+}
+
+export interface CompleteResponse {
+  completion: string;
+}
+
+export interface RagResult {
+  text: string;
+  similarity: number;
+}
+
+export interface RagResponse {
+  retrieved: RagResult[];
+  ungrounded_answer: string;
+  grounded_answer: string;
+}
+
+export interface AgentStep {
+  thought_raw: string;
+  tool: string | null;
+  tool_input: string | null;
+  observation: string | null;
+}
+
+export interface AgentResponse {
+  steps: AgentStep[];
+  final_answer: string;
+}
+
+export interface TrackSummary {
+  slug: TrackSlug;
+  name: string;
+  description: string;
+  lesson_count: number;
+}
+
+export interface CurriculumModule {
+  id: number;
+  title: string;
+  objective: string;
+  lessons: Lesson[];
+}
+
+export interface Curriculum {
+  track: TrackSummary;
+  modules: CurriculumModule[];
+  ungrouped_lessons: Lesson[];
+}
+
+// ---- General-purpose Course system (mirrors backend/app/schemas/course.py)
+// Coexists with Track/Curriculum above -- a Course is arbitrary,
+// instructor-authored content built from the same Module/Lesson tables,
+// not a Track. See backend/app/models/course.py for the schema rationale.
+
+export interface CourseSummary {
+  id: number;
+  slug: string;
+  title: string;
+  description: string;
+  category: string;
+  is_published: boolean;
+  instructor_id: number;
+  chapter_count: number;
+  lesson_count: number;
+  enrolled: boolean;
+  progress_pct: number | null;
+  completed_at: string | null;
+}
+
+export interface CourseLessonOut {
+  id: number;
+  title: string;
+  order_index: number;
+  estimated_minutes: number;
+  completed: boolean;
+}
+
+export interface QuizSummary {
+  id: number;
+  title: string;
+  passing_score: number;
+  question_count: number;
+  best_score: number | null;
+  passed: boolean;
+}
+
+export interface Chapter {
+  id: number;
+  title: string;
+  objective: string;
+  order_index: number;
+  lessons: CourseLessonOut[];
+  quiz: QuizSummary | null;
+}
+
+export interface CourseDetail {
+  id: number;
+  slug: string;
+  title: string;
+  description: string;
+  category: string;
+  is_published: boolean;
+  instructor_id: number;
+  enrolled: boolean;
+  progress_pct: number | null;
+  completed_at: string | null;
+  certificate_code: string | null;
+  chapters: Chapter[];
+}
+
+export interface RosterRow {
+  user_id: number;
+  email: string;
+  full_name: string;
+  enrolled_at: string;
+  progress_pct: number;
+  completed_at: string | null;
+}
+
+export interface QuizQuestionTake {
+  question: string;
+  choices: string[];
+}
+
+export interface QuizTake {
+  id: number;
+  title: string;
+  passing_score: number;
+  questions: QuizQuestionTake[];
+}
+
+export interface QuestionResult {
+  correct: boolean;
+  correct_index: number;
+  selected_index: number;
+}
+
+export interface QuizAttemptResult {
+  score: number;
+  passed: boolean;
+  passing_score: number;
+  results: QuestionResult[];
+  course_completed: boolean;
+}
+
+export interface QuizAttemptSummary {
+  id: number;
+  score: number;
+  passed: boolean;
+  attempted_at: string;
+}
+
+export interface Certificate {
+  id: number;
+  course_id: number;
+  course_title: string;
+  certificate_code: string;
+  issued_at: string;
+}
+
+export interface CertificateVerify {
+  learner_name: string;
+  course_title: string;
+  issued_at: string;
+}
+
+export interface UserCourse {
+  course_id: number;
+  slug: string;
+  title: string;
+  category: string;
+  progress_pct: number;
+  enrolled_at: string;
+  due_at: string | null;
+  completed_at: string | null;
+}
+
+export interface QuizQuestionInput {
+  question: string;
+  choices: string[];
+  correct_index: number;
 }

@@ -1,60 +1,82 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import Link from "next/link";
 import { api } from "@/lib/api";
-import type { UserProgress } from "@/lib/types";
-import { LessonList } from "@/components/LessonList";
+import type { Curriculum } from "@/lib/types";
 
-const TRACK_NAMES: Record<string, string> = {
-  leader: "AI Leader",
-  practitioner: "AI Practitioner",
-  developer: "AI Developer",
-};
-
-export default function TrackPage() {
+export default function TrackCurriculumPage() {
   const params = useParams<{ slug: string }>();
-  const router = useRouter();
-  const [progress, setProgress] = useState<UserProgress | null>(null);
+  const [curriculum, setCurriculum] = useState<Curriculum | null>(null);
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    const userId = Number(localStorage.getItem("user_id"));
-    if (!userId) return;
-    const p = await api.getProgress(userId);
-    // Gate: this track's curriculum is off-limits until Common Core is
-    // done, and this user's own track must match the URL they're on.
-    if (!p.common_core_completed) {
-      router.replace("/dashboard/common-core");
-      return;
+    try {
+      const c = await api.getCurriculum(params.slug);
+      setCurriculum(c);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not load this course.");
     }
-    if (p.track?.slug !== params.slug) {
-      router.replace(`/dashboard/tracks/${p.track?.slug ?? ""}`);
-      return;
-    }
-    setProgress(p);
-  }, [params.slug, router]);
+  }, [params.slug]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  if (!progress) return <main className="px-6 py-12 text-sm text-slate-500">Loading...</main>;
-
-  const pct = progress.track_lessons_total
-    ? Math.round((progress.track_lessons_completed / progress.track_lessons_total) * 100)
-    : 0;
+  if (error) return <main className="px-6 py-12 text-sm text-red-600">{error}</main>;
+  if (!curriculum) return <main className="px-6 py-12 text-sm text-ink-muted">Loading...</main>;
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
-      <h1 className="text-2xl font-semibold">{TRACK_NAMES[params.slug] ?? params.slug} track</h1>
-      <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-800">
-        <div className="h-full bg-brand transition-all" style={{ width: `${pct}%` }} />
-      </div>
-      <p className="mt-2 text-sm text-slate-500">
-        {progress.track_lessons_completed} / {progress.track_lessons_total} lessons complete
-      </p>
+      <Link href="/dashboard/tracks" className="text-xs text-ink-muted hover:text-ink">
+        ← All courses
+      </Link>
 
-      <LessonList lessons={progress.track_lessons} onCompleted={load} />
+      <h1 className="mt-4 text-2xl font-semibold">{curriculum.track.name}</h1>
+      <p className="mt-1 text-sm text-ink-muted">{curriculum.track.description}</p>
+
+      {curriculum.modules.map((m) => (
+        <section key={m.id} className="mt-8">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-brand">{m.title}</h2>
+          {m.objective && <p className="mt-1 text-sm text-ink-muted">{m.objective}</p>}
+          <div className="mt-3 space-y-2">
+            {m.lessons.map((l) => (
+              <Link
+                key={l.id}
+                href={`/dashboard/lessons/${l.id}`}
+                className="flex items-center justify-between rounded-lg border border-line bg-surface px-4 py-3 transition hover:border-brand/40"
+              >
+                <span className="text-sm text-ink">{l.title}</span>
+                <span className="flex items-center gap-2 text-xs text-ink-muted">
+                  {l.completed && <span className="text-emerald-600">✓</span>}
+                  {l.estimated_minutes} min
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ))}
+
+      {curriculum.ungrouped_lessons.length > 0 && (
+        <section className="mt-8">
+          <div className="space-y-2">
+            {curriculum.ungrouped_lessons.map((l) => (
+              <Link
+                key={l.id}
+                href={`/dashboard/lessons/${l.id}`}
+                className="flex items-center justify-between rounded-lg border border-line bg-surface px-4 py-3 transition hover:border-brand/40"
+              >
+                <span className="text-sm text-ink">{l.title}</span>
+                <span className="flex items-center gap-2 text-xs text-ink-muted">
+                  {l.completed && <span className="text-emerald-600">✓</span>}
+                  {l.estimated_minutes} min
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   );
 }

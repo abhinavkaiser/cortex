@@ -44,7 +44,7 @@ export function PromptPlayground() {
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Write a prompt to try..."
           rows={6}
-          className="w-full rounded-xl border border-slate-800 bg-slate-900 p-4 text-sm"
+          className="w-full rounded-xl border border-line bg-surface p-4 text-sm"
         />
         <TokenCostMeter prompt={prompt} model={params.model} maxOutputTokens={params.max_output_tokens} />
         <button
@@ -55,11 +55,11 @@ export function PromptPlayground() {
           {running ? "Running..." : "Run prompt"}
         </button>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-sm text-red-600">{error}</p>}
 
         {result && (
-          <div className="rounded-xl border border-slate-800 p-4">
-            <div className="flex items-center justify-between text-xs text-slate-500">
+          <div className="rounded-xl border border-line p-4">
+            <div className="flex items-center justify-between text-xs text-ink-muted">
               <span>
                 {result.input_tokens} in / {result.output_tokens} out tokens · {result.latency_ms}ms
                 {result.served_from_cache && <span className="ml-2 text-brand">· served from cache</span>}

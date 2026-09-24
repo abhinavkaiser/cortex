@@ -21,8 +21,8 @@ export function QuizQuestion({ pulseId, question, choices }: { pulseId: number; 
   }
 
   return (
-    <div className="rounded-xl border border-slate-800 p-5">
-      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Quiz</div>
+    <div className="rounded-xl border border-line p-5">
+      <div className="text-xs font-medium uppercase tracking-wide text-ink-muted">Quiz</div>
       <p className="mt-2 font-medium">{question}</p>
       <div className="mt-4 space-y-2">
         {choices.map((choice, i) => {
@@ -36,10 +36,10 @@ export function QuizQuestion({ pulseId, question, choices }: { pulseId: number; 
               disabled={checking || !!result}
               className={`block w-full rounded-lg border px-4 py-2.5 text-left text-sm transition ${
                 isCorrectAnswer
-                  ? "border-emerald-500 bg-emerald-500/10"
+                  ? "border-emerald-500 bg-emerald-50"
                   : isWrongSelection
-                  ? "border-red-500 bg-red-500/10"
-                  : "border-slate-800 hover:border-slate-700"
+                  ? "border-red-500 bg-red-50"
+                  : "border-line hover:border-brand/40"
               }`}
             >
               {choice}
@@ -48,7 +48,7 @@ export function QuizQuestion({ pulseId, question, choices }: { pulseId: number; 
         })}
       </div>
       {result && (
-        <p className={`mt-3 text-sm ${result.correct ? "text-emerald-400" : "text-red-400"}`}>
+        <p className={`mt-3 text-sm ${result.correct ? "text-emerald-600" : "text-red-600"}`}>
           {result.correct ? "Correct." : "Not quite -- the highlighted choice above was right."}
         </p>
       )}

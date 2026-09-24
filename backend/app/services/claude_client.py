@@ -68,9 +68,7 @@ def _schema_example(schema: dict) -> dict:
     itself (with "type"/"properties"/"required" keys) is genuinely
     ambiguous: it's happened, live, that the model echoed the schema's own
     meta-structure back instead of producing an instance of it. An example
-    with the real target keys at the top level has no such ambiguity. Only
-    needs to handle the shapes this app's own schemas actually use (flat
-    string/integer/array-of-string properties), not arbitrary JSON Schema."""
+    with the real target keys at the top level has no such ambiguity."""
     example: dict = {}
     for key, spec in schema.get("properties", {}).items():
         t = spec.get("type")
@@ -80,7 +78,21 @@ def _schema_example(schema: dict) -> dict:
             example[key] = 0
         elif t == "array":
             item_type = spec.get("items", {}).get("type", "string")
-            example[key] = [f"<{item_type} 1>", f"<{item_type} 2>", "..."]
+            if item_type == "object":
+                # Items are structured objects (a tagged union whose exact
+                # per-type shapes are spelled out in this property's own
+                # description, not a single flat items sub-schema). A plain
+                # string placeholder here is a confirmed, reproduced bug: it
+                # taught the model to return ["<string 1>", "<string 2>", ...]
+                # -- an array of markdown strings -- instead of real typed
+                # objects, which then silently failed downstream validation.
+                example[key] = [
+                    "<a full object matching one of the exact shapes listed above, e.g. {\"type\": \"...\", ...its fields...} -- never a plain string>",
+                    "<another object, a different shape if appropriate>",
+                    "...",
+                ]
+            else:
+                example[key] = [f"<{item_type} 1>", f"<{item_type} 2>", "..."]
         else:
             example[key] = spec.get("description", "...")
     return example
@@ -116,6 +128,7 @@ def generate(
     max_output_tokens: int = 1024,  # same -- not enforced client-side; a real cap would need a different (API-key-based) integration path
     response_schema: dict | None = None,
     retries: int = 3,  # a flat-rate subscription makes extra retries free, unlike a metered API -- lean generous here
+    system_prompt_override: str | None = None,
 ) -> GenerationResult:
     """Single-turn generation. Pass response_schema (a JSON schema dict) to
     request structured JSON output -- enforced via prompt instruction +
@@ -134,10 +147,11 @@ def generate(
     started = time.monotonic()
     last_err: Exception | None = None
     last_raw = ""
+    system_prompt = system_prompt_override or DEFAULT_SYSTEM_PROMPT
 
     for attempt in range(retries + 1):
         try:
-            raw = _spawn_claude(effective_prompt, model)
+            raw = _spawn_claude(effective_prompt, model, system_prompt=system_prompt)
         except Exception as err:  # noqa: BLE001 -- deliberately broad: CLI failures come as generic RuntimeError/TimeoutExpired
             last_err = err
             if attempt < retries and _is_transient(str(err)):
@@ -156,7 +170,7 @@ def generate(
             )
 
         try:
-            parsed = _extract_json(raw)  # validate parseability + shape before returning; caller does the real parse
+            parsed = _extract_json(raw)  # tolerates a ```json fence or stray prose around the JSON
             missing = [k for k in required if not isinstance(parsed, dict) or k not in parsed]
             if missing:
                 # Valid JSON, but not an instance of the requested shape --
@@ -167,10 +181,18 @@ def generate(
                 # instead of triggering a repair re-prompt.
                 raise ValueError(f"missing required key(s) {missing}")
             latency_ms = round((time.monotonic() - started) * 1000)
+            # Return the CLEANED json (re-serialized from the parsed dict),
+            # not the raw CLI output -- `raw` can still have a ```json fence
+            # or leading/trailing prose around it even when _extract_json
+            # successfully found valid JSON inside it. Returning `raw`
+            # verbatim here was a real bug: every caller does its own
+            # json.loads(result.text) expecting clean JSON, which broke the
+            # instant a response came back fenced.
+            clean_text = json.dumps(parsed)
             return GenerationResult(
-                text=raw,
+                text=clean_text,
                 input_tokens=_rough_token_count(effective_prompt),
-                output_tokens=_rough_token_count(raw),
+                output_tokens=_rough_token_count(clean_text),
                 latency_ms=latency_ms,
             )
         except ValueError as err:

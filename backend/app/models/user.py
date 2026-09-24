@@ -40,3 +40,11 @@ class User(Base):
 
     lesson_progress: Mapped[list["UserLessonProgress"]] = relationship(back_populates="user")
     prompt_attempts: Mapped[list["PromptAttempt"]] = relationship(back_populates="user")
+
+    # Course-system relationships (see models/course.py) -- a user can be a
+    # learner (enrollments/quiz_attempts/certificates) and/or an instructor
+    # (Course.instructor_id) at once; role gates which routes accept which,
+    # not the schema.
+    enrollments: Mapped[list["Enrollment"]] = relationship(back_populates="user")
+    quiz_attempts: Mapped[list["QuizAttempt"]] = relationship(back_populates="user")
+    certificates: Mapped[list["Certificate"]] = relationship(back_populates="user")

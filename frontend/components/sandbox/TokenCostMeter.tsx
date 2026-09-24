@@ -26,13 +26,13 @@ export function TokenCostMeter({ prompt, model, maxOutputTokens }: { prompt: str
   const worstCaseCost = (inputTokens / 1000) * price.input + (maxOutputTokens / 1000) * price.output;
 
   return (
-    <div className="flex items-center gap-4 rounded-lg border border-slate-800 px-4 py-2 text-xs text-slate-400">
+    <div className="flex items-center gap-4 rounded-lg border border-line px-4 py-2 text-xs text-ink-muted">
       <span>
-        ~<span className="text-slate-200">{inputTokens}</span> input tokens
+        ~<span className="text-ink">{inputTokens}</span> input tokens
       </span>
-      <span className="text-slate-700">|</span>
+      <span className="text-ink">|</span>
       <span>
-        up to <span className="text-slate-200">${worstCaseCost.toFixed(5)}</span> equivalent (flat-rate subscription, not billed)
+        up to <span className="text-ink">${worstCaseCost.toFixed(5)}</span> equivalent (flat-rate subscription, not billed)
       </span>
     </div>
   );

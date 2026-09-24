@@ -1,17 +1,36 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.db import get_db
+from app.models.course import Enrollment
 from app.models.lesson import Lesson, UserLessonProgress
 from app.models.module import Module
 from app.models.track import Track
 from app.models.user import User
+from app.schemas.course import UserCourseOut
 from app.schemas.user import CompleteLessonRequest, LessonOut, LessonProgressOut, OnboardingRequest, TrackOut, UserProgressOut
+from app.services.course_progress import check_and_issue_certificate, course_progress_pct
 
 router = APIRouter(prefix="/api/users", tags=["users"])
+
+
+def _common_core_lessons_query(db: Session):
+    """Common Core = track_id IS NULL, historically enough on its own to
+    identify it. Now that the course system exists, a course lesson ALSO
+    has track_id NULL (it hangs off a Module via module_id, never a Track
+    -- see Module/Lesson docstrings), so track_id IS NULL alone would
+    double-count every course lesson as Common Core too. Excluding any
+    lesson whose module belongs to a Course closes that gap."""
+    return (
+        db.query(Lesson)
+        .outerjoin(Module, Lesson.module_id == Module.id)
+        .filter(Lesson.track_id.is_(None))
+        .filter(or_(Lesson.module_id.is_(None), Module.course_id.is_(None)))
+    )
 
 
 @router.post("/onboarding")
@@ -40,22 +59,40 @@ def complete_lesson(body: CompleteLessonRequest, user: User = Depends(get_curren
     )
     if not already:
         db.add(UserLessonProgress(user_id=user.id, lesson_id=lesson.id))
+        # SessionLocal is autoflush=False (see core/db.py) -- the course
+        # -completion check below runs a fresh query for completed lessons,
+        # which wouldn't see the row just added above without this.
+        db.flush()
 
     # If this was the last Common Core lesson, flip the gate that unlocks
-    # the track curriculum in the frontend.
-    if lesson.track_id is None and user.common_core_completed_at is None:
-        common_core_total = db.query(Lesson).filter(Lesson.track_id.is_(None)).count()
+    # the track curriculum in the frontend. lesson.course_id is None for a
+    # genuine Common Core lesson (see _common_core_lessons_query above for
+    # why track_id IS NULL alone isn't enough anymore).
+    if lesson.track_id is None and lesson.course_id is None and user.common_core_completed_at is None:
+        common_core_total = _common_core_lessons_query(db).count()
         completed_ids = {
             p.lesson_id
             for p in db.query(UserLessonProgress).filter(UserLessonProgress.user_id == user.id)
         }
         completed_ids.add(lesson.id)
-        common_core_completed = db.query(Lesson).filter(Lesson.track_id.is_(None), Lesson.id.in_(completed_ids)).count()
+        common_core_completed = _common_core_lessons_query(db).filter(Lesson.id.in_(completed_ids)).count()
         if common_core_completed >= common_core_total:
             user.common_core_completed_at = datetime.utcnow()
 
+    # Course completion is a separate gate from Common Core, and orthogonal
+    # to it -- a course lesson has track_id None (it's not a Track lesson)
+    # so it never touches the Common Core branch above. course_id is
+    # derived via lesson.module.course_id (see Lesson.course_id).
+    course_completed = False
+    if lesson.course_id:
+        course_completed = check_and_issue_certificate(db, user.id, lesson.course_id) is not None
+
     db.commit()
-    return {"ok": True, "common_core_completed": user.common_core_completed_at is not None}
+    return {
+        "ok": True,
+        "common_core_completed": user.common_core_completed_at is not None,
+        "course_completed": course_completed,
+    }
 
 
 @router.get("/{user_id}/progress", response_model=UserProgressOut)
@@ -70,7 +107,7 @@ def get_progress(user_id: int, user: User = Depends(get_current_user), db: Sessi
     progress_rows = db.query(UserLessonProgress).filter(UserLessonProgress.user_id == user_id).all()
     completed_lesson_ids = {p.lesson_id for p in progress_rows}
 
-    common_core_lessons = db.query(Lesson).filter(Lesson.track_id.is_(None)).order_by(Lesson.order_index).all()
+    common_core_lessons = _common_core_lessons_query(db).order_by(Lesson.order_index).all()
     track_lessons = (
         db.query(Lesson)
         .filter(Lesson.track_id == target.track_id)
@@ -97,6 +134,7 @@ def get_progress(user_id: int, user: User = Depends(get_current_user), db: Sessi
     return UserProgressOut(
         user_id=target.id,
         email=target.email,
+        role=target.role.value,
         track=TrackOut.model_validate(target.track) if target.track else None,
         common_core_completed=target.common_core_completed_at is not None,
         common_core_completed_at=target.common_core_completed_at,
@@ -112,3 +150,33 @@ def get_progress(user_id: int, user: User = Depends(get_current_user), db: Sessi
             if p.lesson_id in lessons_by_id
         ],
     )
+
+
+@router.get("/{user_id}/courses", response_model=list[UserCourseOut])
+def get_user_courses(user_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Every course this user is enrolled in, plus % complete each -- the
+    learner course dashboard. Same self-or-admin access check as
+    /progress above -- your own enrollments are private, not something any
+    other learner (or even the course's instructor, via this endpoint --
+    they'd use GET /api/courses/{id}/roster instead) can browse."""
+    if user.id != user_id and user.role.value != "admin":
+        raise HTTPException(403, "Cannot view another user's courses")
+
+    target = db.get(User, user_id)
+    if not target:
+        raise HTTPException(404, "User not found")
+
+    enrollments = db.query(Enrollment).filter(Enrollment.user_id == user_id).order_by(Enrollment.enrolled_at.desc()).all()
+    return [
+        UserCourseOut(
+            course_id=e.course_id,
+            slug=e.course.slug,
+            title=e.course.title,
+            category=e.course.category,
+            progress_pct=course_progress_pct(db, user_id, e.course_id),
+            enrolled_at=e.enrolled_at,
+            due_at=e.due_at,
+            completed_at=e.completed_at,
+        )
+        for e in enrollments
+    ]

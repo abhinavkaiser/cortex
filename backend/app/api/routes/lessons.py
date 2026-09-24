@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -14,6 +16,7 @@ class LessonDetailOut(BaseModel):
     id: int
     title: str
     content_markdown: str
+    content_blocks: list[dict[str, Any]]
     estimated_minutes: int
     completed: bool
     track_slug: str | None
@@ -31,13 +34,6 @@ def get_lesson(lesson_id: int, user: User = Depends(get_current_user), db: Sessi
     if not lesson:
         raise HTTPException(404, "Lesson not found")
 
-    # Common Core lessons (track_id NULL) are readable by anyone. A
-    # track-specific lesson is only readable by a user actually on that
-    # track -- mirrors the same gating /users/{id}/progress already
-    # enforces for which lessons even show up in a user's lists.
-    if lesson.track_id is not None and lesson.track_id != user.track_id:
-        raise HTTPException(403, "This lesson belongs to a different track")
-
     completed = (
         db.query(UserLessonProgress)
         .filter(UserLessonProgress.user_id == user.id, UserLessonProgress.lesson_id == lesson_id)
@@ -49,6 +45,7 @@ def get_lesson(lesson_id: int, user: User = Depends(get_current_user), db: Sessi
         id=lesson.id,
         title=lesson.title,
         content_markdown=lesson.content_markdown,
+        content_blocks=lesson.content_blocks or [],
         estimated_minutes=lesson.estimated_minutes,
         completed=completed,
         track_slug=lesson.track.slug if lesson.track else None,

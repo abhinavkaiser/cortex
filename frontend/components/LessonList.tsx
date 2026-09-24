@@ -8,16 +8,16 @@ function LessonRow({ lesson }: { lesson: Lesson }) {
   return (
     <Link
       href={`/dashboard/lessons/${lesson.id}`}
-      className={`flex items-center justify-between rounded-lg border px-4 py-3 transition hover:border-slate-700 ${
-        lesson.completed ? "border-slate-800 bg-slate-900/40" : "border-slate-800"
+      className={`flex items-center justify-between rounded-lg border px-4 py-3 transition hover:border-brand/40 ${
+        lesson.completed ? "border-line bg-surface" : "border-line"
       }`}
     >
       <div>
-        <div className={`text-sm font-medium ${lesson.completed ? "text-slate-500 line-through" : "text-slate-100"}`}>{lesson.title}</div>
-        <div className="text-xs text-slate-500">{lesson.estimated_minutes} min</div>
+        <div className={`text-sm font-medium ${lesson.completed ? "text-ink-muted line-through" : "text-ink"}`}>{lesson.title}</div>
+        <div className="text-xs text-ink-muted">{lesson.estimated_minutes} min</div>
       </div>
       {lesson.completed ? (
-        <span className="shrink-0 text-xs font-medium text-emerald-400">✓ Done</span>
+        <span className="shrink-0 text-xs font-medium text-emerald-600">✓ Done</span>
       ) : (
         <span className="shrink-0 text-xs font-medium text-brand">Read →</span>
       )}
@@ -27,7 +27,7 @@ function LessonRow({ lesson }: { lesson: Lesson }) {
 
 export function LessonList({ lessons }: { lessons: Lesson[]; onCompleted?: () => void }) {
   if (lessons.length === 0) {
-    return <p className="mt-4 text-sm text-slate-500">No lessons in this section yet.</p>;
+    return <p className="mt-4 text-sm text-ink-muted">No lessons in this section yet.</p>;
   }
 
   // Group by module when the curriculum has real modules (e.g. AI Leader's
@@ -63,8 +63,8 @@ export function LessonList({ lessons }: { lessons: Lesson[]; onCompleted?: () =>
         return (
           <div key={moduleId}>
             <div className="mb-2 flex items-baseline justify-between">
-              <h2 className="text-sm font-semibold text-slate-200">{moduleLessons[0].module_title ?? "Other lessons"}</h2>
-              <span className="text-xs text-slate-500">
+              <h2 className="text-sm font-semibold text-ink">{moduleLessons[0].module_title ?? "Other lessons"}</h2>
+              <span className="text-xs text-ink-muted">
                 {completedCount} / {moduleLessons.length}
               </span>
             </div>

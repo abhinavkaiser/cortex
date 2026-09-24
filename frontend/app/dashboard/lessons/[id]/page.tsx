@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { api } from "@/lib/api";
 import type { LessonDetail } from "@/lib/types";
+import { segmentBlocks } from "@/lib/lessonSections";
+import { LessonBlockView } from "@/components/lesson-blocks/LessonBlockView";
 
 export default function LessonPage() {
   const params = useParams<{ id: string }>();
@@ -26,6 +28,8 @@ export default function LessonPage() {
     load();
   }, [load]);
 
+  const sections = useMemo(() => (lesson ? segmentBlocks(lesson.content_blocks) : []), [lesson]);
+
   async function complete() {
     if (!lesson || lesson.completed) return;
     setCompleting(true);
@@ -37,12 +41,12 @@ export default function LessonPage() {
     }
   }
 
-  if (error) return <main className="px-6 py-12 text-sm text-red-400">{error}</main>;
-  if (!lesson) return <main className="px-6 py-12 text-sm text-slate-500">Loading...</main>;
+  if (error) return <main className="px-6 py-12 text-sm text-red-600">{error}</main>;
+  if (!lesson) return <main className="px-6 py-12 text-sm text-ink-muted">Loading...</main>;
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
-      <button onClick={() => router.back()} className="text-xs text-slate-500 hover:text-slate-300">
+      <button onClick={() => router.back()} className="text-xs text-ink-muted hover:text-ink">
         ← Back
       </button>
 
@@ -52,10 +56,10 @@ export default function LessonPage() {
             <div className="mb-1 text-xs font-medium uppercase tracking-wide text-brand">{lesson.module_title}</div>
           )}
           <h1 className="text-2xl font-semibold">{lesson.title}</h1>
-          <p className="mt-1 text-xs text-slate-500">{lesson.estimated_minutes} min read</p>
+          <p className="mt-1 text-xs text-ink-muted">{lesson.estimated_minutes} min</p>
         </div>
         {lesson.completed ? (
-          <span className="shrink-0 text-sm font-medium text-emerald-400">✓ Completed</span>
+          <span className="shrink-0 text-sm font-medium text-emerald-600">✓ Completed</span>
         ) : (
           <button
             onClick={complete}
@@ -67,14 +71,27 @@ export default function LessonPage() {
         )}
       </div>
 
-      {lesson.content_markdown ? (
-        <article className="prose prose-invert prose-slate mt-8 max-w-none prose-headings:font-semibold prose-a:text-brand">
+      {sections.length > 0 ? (
+        <div className="mt-8 space-y-10">
+          {sections.map((section, i) => (
+            <section key={i}>
+              {section.title !== "Introduction" && <h2 className="mb-3 text-lg font-semibold text-ink">{section.title}</h2>}
+              <div className="space-y-4">
+                {section.blocks.map((block, j) => (
+                  <LessonBlockView key={j} block={block} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : lesson.content_markdown ? (
+        <article className="prose prose-slate mt-8 max-w-none prose-headings:font-semibold prose-a:text-brand">
           <ReactMarkdown>{lesson.content_markdown}</ReactMarkdown>
         </article>
       ) : (
-        <p className="mt-8 text-sm text-slate-500">
+        <p className="mt-8 text-sm text-ink-muted">
           This lesson doesn&apos;t have content yet -- run{" "}
-          <code className="rounded bg-slate-900 px-1.5 py-0.5">python scripts/generate_lesson_content.py</code> on the backend.
+          <code className="rounded bg-surface px-1.5 py-0.5">python scripts/generate_lesson_content.py</code> on the backend.
         </p>
       )}
     </main>
