@@ -5,3 +5,24 @@
 body {
   @apply bg-white text-ink;
 }
+
+@keyframes card-in-from-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes card-in-from-left {
+  from { opacity: 0; transform: translateX(-24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-card-in-right {
+  animation: card-in-from-right 220ms ease-out;
+}
+.animate-card-in-left {
+  animation: card-in-from-left 220ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-card-in-right,
+  .animate-card-in-left {
+    animation: none;
+  }
+}

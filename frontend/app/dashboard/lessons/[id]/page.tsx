@@ -14,11 +14,14 @@ export default function LessonPage() {
   const [lesson, setLesson] = useState<LessonDetail | null>(null);
   const [error, setError] = useState("");
   const [completing, setCompleting] = useState(false);
+  const [cardIndex, setCardIndex] = useState(0);
+  const [direction, setDirection] = useState<1 | -1>(1);
 
   const load = useCallback(async () => {
     try {
       const l = await api.getLesson(Number(params.id));
       setLesson(l);
+      setCardIndex(0);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load this lesson.");
     }
@@ -29,6 +32,25 @@ export default function LessonPage() {
   }, [load]);
 
   const sections = useMemo(() => (lesson ? segmentBlocks(lesson.content_blocks) : []), [lesson]);
+  const lastCard = sections.length - 1;
+
+  const goTo = useCallback((next: number) => {
+    setCardIndex((current) => {
+      const clamped = Math.max(0, Math.min(next, sections.length - 1));
+      setDirection(clamped >= current ? 1 : -1);
+      return clamped;
+    });
+  }, [sections.length]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (sections.length === 0) return;
+      if (e.key === "ArrowRight") goTo(cardIndex + 1);
+      if (e.key === "ArrowLeft") goTo(cardIndex - 1);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sections.length, cardIndex, goTo]);
 
   async function complete() {
     if (!lesson || lesson.completed) return;
@@ -58,31 +80,72 @@ export default function LessonPage() {
           <h1 className="text-2xl font-semibold">{lesson.title}</h1>
           <p className="mt-1 text-xs text-ink-muted">{lesson.estimated_minutes} min</p>
         </div>
-        {lesson.completed ? (
-          <span className="shrink-0 text-sm font-medium text-emerald-600">✓ Completed</span>
-        ) : (
-          <button
-            onClick={complete}
-            disabled={completing}
-            className="shrink-0 rounded-lg bg-brand px-4 py-2 text-sm font-medium disabled:opacity-40"
-          >
-            {completing ? "..." : "Mark complete"}
-          </button>
-        )}
+        {lesson.completed && <span className="shrink-0 text-sm font-medium text-emerald-600">✓ Completed</span>}
       </div>
 
       {sections.length > 0 ? (
-        <div className="mt-8 space-y-10">
-          {sections.map((section, i) => (
-            <section key={i}>
-              {section.title !== "Introduction" && <h2 className="mb-3 text-lg font-semibold text-ink">{section.title}</h2>}
+        <div className="mt-8">
+          <div className="mb-4 flex items-center gap-2">
+            {sections.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => goTo(i)}
+                aria-label={`Go to card ${i + 1}`}
+                className={[
+                  "h-1.5 flex-1 rounded-full transition-colors",
+                  i === cardIndex ? "bg-brand" : i < cardIndex ? "bg-brand/40" : "bg-line",
+                ].join(" ")}
+              />
+            ))}
+          </div>
+          <p className="mb-4 text-xs font-medium text-ink-muted">
+            Card {cardIndex + 1} of {sections.length}
+          </p>
+
+          <div className="overflow-hidden">
+            <section
+              key={cardIndex}
+              className={[
+                "rounded-2xl border border-line bg-white p-6 shadow-sm sm:p-8",
+                direction === 1 ? "animate-card-in-right" : "animate-card-in-left",
+              ].join(" ")}
+            >
+              {sections[cardIndex].title !== "Introduction" && (
+                <h2 className="mb-4 text-lg font-semibold text-ink">{sections[cardIndex].title}</h2>
+              )}
               <div className="space-y-4">
-                {section.blocks.map((block, j) => (
+                {sections[cardIndex].blocks.map((block, j) => (
                   <LessonBlockView key={j} block={block} />
                 ))}
               </div>
             </section>
-          ))}
+          </div>
+
+          <div className="mt-5 flex items-center justify-between gap-3">
+            <button
+              onClick={() => goTo(cardIndex - 1)}
+              disabled={cardIndex === 0}
+              className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink disabled:opacity-30"
+            >
+              ← Previous
+            </button>
+
+            {cardIndex === lastCard ? (
+              !lesson.completed && (
+                <button
+                  onClick={complete}
+                  disabled={completing}
+                  className="rounded-lg bg-brand px-4 py-2 text-sm font-medium disabled:opacity-40"
+                >
+                  {completing ? "..." : "Mark complete"}
+                </button>
+              )
+            ) : (
+              <button onClick={() => goTo(cardIndex + 1)} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium">
+                Next →
+              </button>
+            )}
+          </div>
         </div>
       ) : lesson.content_markdown ? (
         <article className="prose prose-slate mt-8 max-w-none prose-headings:font-semibold prose-a:text-brand">
