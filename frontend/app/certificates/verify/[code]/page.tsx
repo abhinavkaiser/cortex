@@ -41,6 +41,11 @@ export default function VerifyCertificatePage() {
           <div className="mt-1 text-sm text-ink-muted">has completed</div>
           <div className="mt-2 text-lg font-medium text-ink">{cert.course_title}</div>
           <div className="mt-4 text-xs text-ink-muted">Issued {new Date(cert.issued_at).toLocaleDateString()}</div>
+          {cert.expires_at && (
+            <div className={`mt-1 text-xs font-medium ${cert.is_expired ? "text-red-600" : "text-ink-muted"}`}>
+              {cert.is_expired ? "Expired" : "Valid until"} {new Date(cert.expires_at).toLocaleDateString()}
+            </div>
+          )}
         </div>
       )}
     </main>

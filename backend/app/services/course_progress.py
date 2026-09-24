@@ -7,11 +7,11 @@ column (see models/course.py's Enrollment docstring) -- it's always computed
 live from UserLessonProgress/QuizAttempt rows, so route code and this module
 are the only places that need to agree on how."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.models.course import Certificate, Enrollment, Quiz, QuizAttempt
+from app.models.course import Certificate, Course, Enrollment, Quiz, QuizAttempt
 from app.models.lesson import Lesson, UserLessonProgress
 from app.models.module import Module
 
@@ -87,7 +87,15 @@ def check_and_issue_certificate(db: Session, user_id: int, course_id: int) -> Ce
     if existing:
         return existing
 
-    cert = Certificate(user_id=user_id, course_id=course_id)
+    # certificate_validity_days is read once, here, at issuance -- see
+    # Certificate.expires_at's docstring for why this deliberately doesn't
+    # get recomputed if the course's setting changes later.
+    course = db.get(Course, course_id)
+    expires_at = None
+    if course and course.certificate_validity_days:
+        expires_at = datetime.utcnow() + timedelta(days=course.certificate_validity_days)
+
+    cert = Certificate(user_id=user_id, course_id=course_id, expires_at=expires_at)
     db.add(cert)
     db.flush()
     return cert
