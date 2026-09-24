@@ -50,7 +50,7 @@ export function PromptPlayground() {
         <button
           onClick={run}
           disabled={running || !prompt.trim()}
-          className="rounded-lg bg-brand px-5 py-2.5 text-sm font-medium disabled:opacity-40"
+          className="rounded-lg bg-brand px-5 py-2.5 text-sm font-medium text-white disabled:opacity-40"
         >
           {running ? "Running..." : "Run prompt"}
         </button>

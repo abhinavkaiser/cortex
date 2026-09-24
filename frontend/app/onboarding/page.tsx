@@ -61,7 +61,7 @@ export default function OnboardingPage() {
       <button
         onClick={confirm}
         disabled={!selected || submitting}
-        className="mt-8 rounded-lg bg-brand px-5 py-2.5 font-medium disabled:opacity-40"
+        className="mt-8 rounded-lg bg-brand px-5 py-2.5 font-medium text-white disabled:opacity-40"
       >
         {submitting ? "Setting up..." : "Continue"}
       </button>

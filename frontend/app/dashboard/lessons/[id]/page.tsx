@@ -4,9 +4,42 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { api } from "@/lib/api";
-import type { LessonDetail } from "@/lib/types";
+import type { LessonBlock, LessonDetail } from "@/lib/types";
 import { segmentBlocks } from "@/lib/lessonSections";
 import { LessonBlockView } from "@/components/lesson-blocks/LessonBlockView";
+
+// Strips the light markdown these blocks use (#, **, _, -) down to plain
+// words -- good enough for speech, not meant to be a full markdown parser.
+function stripMarkdown(md: string): string {
+  return md
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/`(.+?)`/g, "$1")
+    .replace(/^-\s+/gm, "")
+    .trim();
+}
+
+// One card can mix text, a diagram, a knowledge check, etc. -- this pulls
+// out whatever's actually readable from each block type so "Listen" reads
+// the whole card, not just prose paragraphs.
+function blockToSpeechText(block: LessonBlock): string {
+  switch (block.type) {
+    case "text":
+    case "callout":
+      return stripMarkdown(block.markdown);
+    case "check":
+      return block.question;
+    case "image":
+      return block.caption || block.alt || "";
+    case "calculator":
+      return `${block.title}. ${block.description}`;
+    case "diagram":
+      return block.title;
+    default:
+      return "";
+  }
+}
 
 export default function LessonPage() {
   const params = useParams<{ id: string }>();
@@ -16,6 +49,7 @@ export default function LessonPage() {
   const [completing, setCompleting] = useState(false);
   const [cardIndex, setCardIndex] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
+  const [speaking, setSpeaking] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -51,6 +85,34 @@ export default function LessonPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [sections.length, cardIndex, goTo]);
+
+  // Stop reading aloud whenever the card changes (nav, or the lesson swaps
+  // out from under us) -- a stale utterance reading the wrong card is worse
+  // than just cutting off.
+  useEffect(() => {
+    setSpeaking(false);
+    window.speechSynthesis?.cancel();
+    return () => window.speechSynthesis?.cancel();
+  }, [cardIndex, lesson?.id]);
+
+  function toggleListen() {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    const section = sections[cardIndex];
+    const text = [section.title !== "Introduction" ? section.title : "", ...section.blocks.map(blockToSpeechText)]
+      .filter(Boolean)
+      .join(". ");
+    if (!text) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+    setSpeaking(true);
+  }
 
   async function complete() {
     if (!lesson || lesson.completed) return;
@@ -98,9 +160,17 @@ export default function LessonPage() {
               />
             ))}
           </div>
-          <p className="mb-4 text-xs font-medium text-ink-muted">
-            Card {cardIndex + 1} of {sections.length}
-          </p>
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-xs font-medium text-ink-muted">
+              Card {cardIndex + 1} of {sections.length} · {Math.round(((cardIndex + 1) / sections.length) * 100)}% complete
+            </p>
+            <button
+              onClick={toggleListen}
+              className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface"
+            >
+              {speaking ? "◼ Stop" : "🔊 Listen"}
+            </button>
+          </div>
 
           <div className="overflow-hidden">
             <section
@@ -130,21 +200,25 @@ export default function LessonPage() {
               ← Previous
             </button>
 
-            {cardIndex === lastCard ? (
-              !lesson.completed && (
+            <div className="flex items-center gap-3">
+              {!lesson.completed && (
                 <button
                   onClick={complete}
                   disabled={completing}
-                  className="rounded-lg bg-brand px-4 py-2 text-sm font-medium disabled:opacity-40"
+                  className="rounded-lg border border-brand px-4 py-2 text-sm font-medium text-brand hover:bg-brand/5 disabled:opacity-40"
                 >
-                  {completing ? "..." : "Mark complete"}
+                  {completing ? "..." : "Mark as read"}
                 </button>
-              )
-            ) : (
-              <button onClick={() => goTo(cardIndex + 1)} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium">
-                Next →
-              </button>
-            )}
+              )}
+              {cardIndex < lastCard && (
+                <button
+                  onClick={() => goTo(cardIndex + 1)}
+                  className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+                >
+                  Next →
+                </button>
+              )}
+            </div>
           </div>
         </div>
       ) : lesson.content_markdown ? (
