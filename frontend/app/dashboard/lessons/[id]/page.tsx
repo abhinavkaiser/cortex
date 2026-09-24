@@ -36,6 +36,12 @@ function blockToSpeechText(block: LessonBlock): string {
       return `${block.title}. ${block.description}`;
     case "diagram":
       return block.title;
+    case "video":
+      return block.transcript ? `${block.title}. ${block.transcript}` : block.title;
+    case "document":
+      return block.title;
+    case "link":
+      return `${block.title}. ${block.description}`;
     default:
       return "";
   }

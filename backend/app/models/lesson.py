@@ -43,10 +43,26 @@ class Lesson(Base):
     #   "inputs": [{"key","label","default","min","max","step","unit"}],
     #   "formula": "safe arithmetic expression over input keys",
     #   "output_label": "...", "output_format": "currency"|"number"|"percent"}
+    # {"type": "video", "title": "...", "url": "youtube/vimeo id or URL, or a direct file URL",
+    #   "transcript": "optional plain-text transcript"}
+    #   -- a known-provider URL (youtube.com/youtu.be/vimeo.com) is parsed
+    #   into an embed URL and rendered via <iframe>; anything else falls
+    #   back to a native <video> tag. See frontend/lib/videoEmbed.ts.
+    # {"type": "document", "title": "...", "url": "/static/course-uploads/...",
+    #   "filename": "original-name.pdf"}
+    #   -- url comes from POST /api/courses/{id}/upload (instructor/admin
+    #   only), same static-file convention app/agents/image_mcp.py already
+    #   uses for images. Rendered via <iframe>/<embed> with a download
+    #   fallback link, not re-hosted anywhere else.
+    # {"type": "link", "title": "...", "url": "https://...", "description": "..."}
+    #   -- an external URL, rendered as a clearly-labeled outbound card, not
+    #   auto-embedded (unlike video/document, this is content this app
+    #   doesn't control or host).
     # See scripts/generate_lesson_content.py's BLOCK_SCHEMA for the
-    # authoritative shape, and frontend/components/lesson-blocks/ for
-    # rendering. Empty list = not yet generated in block form (falls back
-    # to content_markdown in the UI).
+    # authoritative shape of the AI-generated block types, and
+    # frontend/components/lesson-blocks/ for rendering of all of them.
+    # Empty list = not yet generated in block form (falls back to
+    # content_markdown in the UI).
     content_blocks: Mapped[list[dict]] = mapped_column(JSON, default=list)
 
     order_index: Mapped[int] = mapped_column(Integer, default=0)

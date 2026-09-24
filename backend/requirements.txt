@@ -13,3 +13,5 @@ sentence-transformers==3.1.1
 mcp==1.0.0
 python-dotenv==1.0.1
 pytest==8.3.3
+python-multipart==0.0.9  # FastAPI file-upload (UploadFile) form parsing -- POST /api/courses/{id}/upload
+reportlab==4.2.5  # pure-Python PDF generation for certificates -- no system binary dependency (see services/certificate_pdf.py)

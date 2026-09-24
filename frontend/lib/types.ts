@@ -111,7 +111,37 @@ export interface ImageBlock {
   attribution: string;
 }
 
-export type LessonBlock = TextBlock | CalloutBlock | CheckBlock | DiagramBlockType | CalculatorBlock | ImageBlock;
+// A YouTube/Vimeo URL is parsed client-side (lib/videoEmbed.ts) into an
+// embed URL and rendered via <iframe>; anything else (a direct file URL)
+// falls back to a native <video> tag. transcript is optional plain text.
+export interface VideoBlock {
+  type: "video";
+  title: string;
+  url: string;
+  transcript: string;
+}
+
+// url comes from POST /api/courses/{id}/upload (see lib/api.ts's
+// uploadCourseDocument) -- a /static/... path this app serves itself, same
+// convention ImageBlock's url already uses.
+export interface DocumentBlock {
+  type: "document";
+  title: string;
+  url: string;
+  filename: string;
+}
+
+// An external URL this app doesn't control or host -- rendered as a
+// clearly-labeled outbound card, never auto-embedded (unlike video/document
+// above).
+export interface LinkBlock {
+  type: "link";
+  title: string;
+  url: string;
+  description: string;
+}
+
+export type LessonBlock = TextBlock | CalloutBlock | CheckBlock | DiagramBlockType | CalculatorBlock | ImageBlock | VideoBlock | DocumentBlock | LinkBlock;
 
 export interface LessonDetail {
   id: number;
@@ -253,6 +283,7 @@ export interface CourseSummary {
   instructor_id: number;
   chapter_count: number;
   lesson_count: number;
+  certificate_validity_days: number | null;
   enrolled: boolean;
   progress_pct: number | null;
   completed_at: string | null;
@@ -273,6 +304,8 @@ export interface QuizSummary {
   question_count: number;
   best_score: number | null;
   passed: boolean;
+  randomize_questions: boolean;
+  max_attempts: number | null;
 }
 
 export interface Chapter {
@@ -292,6 +325,7 @@ export interface CourseDetail {
   category: string;
   is_published: boolean;
   instructor_id: number;
+  certificate_validity_days: number | null;
   enrolled: boolean;
   progress_pct: number | null;
   completed_at: string | null;
@@ -308,7 +342,16 @@ export interface RosterRow {
   completed_at: string | null;
 }
 
+export type QuestionType = "multiple_choice" | "multi_select" | "true_false" | "short_answer";
+
+// One answer's value: an int (multiple_choice/true_false selected index),
+// number[] (multi_select selected indices), a string (short_answer free
+// text), or null (unanswered). Mirrors backend AnswerValue.
+export type AnswerValue = number | number[] | string | null;
+
 export interface QuizQuestionTake {
+  original_index: number;
+  type: QuestionType;
   question: string;
   choices: string[];
 }
@@ -317,18 +360,25 @@ export interface QuizTake {
   id: number;
   title: string;
   passing_score: number;
+  max_attempts: number | null;
+  attempts_used: number;
   questions: QuizQuestionTake[];
 }
 
 export interface QuestionResult {
-  correct: boolean;
-  correct_index: number;
-  selected_index: number;
+  type: QuestionType;
+  correct: boolean | null; // null for a short_answer question -- pending instructor review
+  selected: AnswerValue;
+  correct_index: number | null;
+  correct_indices: number[] | null;
 }
+
+export type QuizAttemptStatus = "graded" | "pending";
 
 export interface QuizAttemptResult {
   score: number;
   passed: boolean;
+  status: QuizAttemptStatus;
   passing_score: number;
   results: QuestionResult[];
   course_completed: boolean;
@@ -338,7 +388,34 @@ export interface QuizAttemptSummary {
   id: number;
   score: number;
   passed: boolean;
+  status: QuizAttemptStatus;
   attempted_at: string;
+}
+
+// ---- Instructor grading queue (short_answer questions) ---------------
+
+export interface PendingAttemptQuestion {
+  type: QuestionType;
+  question: string;
+  sample_answer?: string;
+}
+
+export interface PendingAttempt {
+  id: number;
+  user_id: number;
+  user_email: string;
+  user_full_name: string;
+  attempted_at: string;
+  questions: PendingAttemptQuestion[];
+  answers: AnswerValue[];
+}
+
+export interface GradeAttemptResult {
+  id: number;
+  score: number;
+  passed: boolean;
+  status: QuizAttemptStatus;
+  course_completed: boolean;
 }
 
 export interface Certificate {
@@ -347,12 +424,16 @@ export interface Certificate {
   course_title: string;
   certificate_code: string;
   issued_at: string;
+  expires_at: string | null;
+  is_expired: boolean;
 }
 
 export interface CertificateVerify {
   learner_name: string;
   course_title: string;
   issued_at: string;
+  expires_at: string | null;
+  is_expired: boolean;
 }
 
 export interface UserCourse {
@@ -367,7 +448,10 @@ export interface UserCourse {
 }
 
 export interface QuizQuestionInput {
+  type: QuestionType;
   question: string;
   choices: string[];
-  correct_index: number;
+  correct_index: number | null; // multiple_choice / true_false
+  correct_indices: number[]; // multi_select
+  sample_answer: string; // short_answer -- shown to the instructor grading it
 }

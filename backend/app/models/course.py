@@ -38,6 +38,13 @@ class Course(Base):
     # instructor's own toggle is the only gate.
     is_published: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Null = certificate never expires (the original behavior). Set by the
+    # instructor per-course; applied at issuance time in
+    # check_and_issue_certificate, which stamps Certificate.expires_at once
+    # and never recomputes it later -- changing this after a certificate
+    # already exists doesn't retroactively change that certificate.
+    certificate_validity_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     modules: Mapped[list["Module"]] = relationship(back_populates="course", order_by="Module.order_index")
@@ -75,10 +82,22 @@ class Quiz(Base):
     plus explicit "replace" logic for a feature that only ever needs one
     active quiz per chapter today.
 
-    questions mirrors DailyPulse.quiz_choices/quiz_correct_index's shape --
-    one question there, a list of the same per-question shape here -- for
-    consistency rather than inventing a new question schema:
-    [{"question": "...", "choices": [...], "correct_index": N}, ...]
+    questions mirrors DailyPulse.quiz_choices/quiz_correct_index's shape for
+    the original multiple_choice case, extended additively with a "type"
+    key so existing multiple-choice quizzes (no "type" key at all) keep
+    working unchanged -- absence of "type" means multiple_choice:
+    [
+      {"type": "multiple_choice" (optional, default), "question": "...",
+       "choices": [...], "correct_index": N},
+      {"type": "true_false", "question": "...", "choices": ["True", "False"],
+       "correct_index": 0|1},
+      {"type": "multi_select", "question": "...", "choices": [...],
+       "correct_indices": [N, ...]},
+      {"type": "short_answer", "question": "...",
+       "sample_answer": "shown to the instructor grading it, not graded automatically"},
+    ]
+    See quizzes.py's submit_attempt for how each type is graded (or, for
+    short_answer, queued for an instructor instead).
     """
 
     __tablename__ = "quizzes"
@@ -91,15 +110,34 @@ class Quiz(Base):
     passing_score: Mapped[int] = mapped_column(Integer, default=70)  # percent, 0-100
     questions: Mapped[list[dict]] = mapped_column(JSON, default=list)
 
+    # Shuffled per-attempt at fetch time (GET /api/quizzes/{id}), question
+    # order only -- answer-choice order within a question is never
+    # shuffled. QuizTakeOut carries each question's original index back so
+    # submit_attempt can grade against the right entry in `questions`
+    # regardless of the order it was shown in.
+    randomize_questions: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Null = unlimited retakes (the original behavior). Enforced in
+    # submit_attempt by counting this user's existing QuizAttempt rows for
+    # this quiz -- not a DB constraint, since "how many attempts so far" is
+    # inherently a runtime count, not something the schema can enforce.
+    max_attempts: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     attempts: Mapped[list["QuizAttempt"]] = relationship(back_populates="quiz")
 
 
 class QuizAttempt(Base):
-    """Multiple attempts per user are allowed (a learner can retake) --
-    course-completion logic (see users.py's complete_lesson) checks for the
-    user's BEST attempt meeting passing_score, not just the most recent, so
-    a later failed retake can't un-clear a chapter that was already
-    passed."""
+    """Multiple attempts per user are allowed (a learner can retake, subject
+    to Quiz.max_attempts) -- course-completion logic (see users.py's
+    complete_lesson) checks for the user's BEST attempt meeting
+    passing_score, not just the most recent, so a later failed retake can't
+    un-clear a chapter that was already passed.
+
+    answers is one entry per question, in the order the question was
+    presented (see Quiz.randomize_questions) -- an int (multiple_choice/
+    true_false selected index), a list[int] (multi_select selected
+    indices), a str (short_answer free text), or None (skipped, shouldn't
+    happen since the UI requires every question answered before submit)."""
 
     __tablename__ = "quiz_attempts"
 
@@ -107,9 +145,18 @@ class QuizAttempt(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     quiz_id: Mapped[int] = mapped_column(ForeignKey("quizzes.id"), nullable=False)
 
-    answers: Mapped[list[int]] = mapped_column(JSON, default=list)  # chosen choice index per question, in question order
-    score: Mapped[int] = mapped_column(Integer, default=0)  # percent, 0-100
+    answers: Mapped[list] = mapped_column(JSON, default=list)
+    score: Mapped[int] = mapped_column(Integer, default=0)  # percent, 0-100 -- provisional (auto-graded questions only) until status == "graded"
     passed: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # "graded": every question was auto-gradable and score/passed above are
+    # final (the original, only behavior before short_answer existed).
+    # "pending": this attempt included at least one short_answer question --
+    # an instructor must call POST /api/quiz-attempts/{id}/grade to finalize
+    # score/passed and (if it passes) trigger course-completion the same way
+    # an auto-graded passing attempt does.
+    status: Mapped[str] = mapped_column(String(20), default="graded")
+    graded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     attempted_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -134,6 +181,12 @@ class Certificate(Base):
 
     certificate_code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, default=lambda: secrets.token_urlsafe(24))
     issued_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Computed once at issuance from Course.certificate_validity_days (null
+    # -> null, never expires) and never recomputed -- changing the course's
+    # setting later doesn't retroactively move an already-issued
+    # certificate's expiry.
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="certificates")
     course: Mapped["Course"] = relationship(back_populates="certificates")
