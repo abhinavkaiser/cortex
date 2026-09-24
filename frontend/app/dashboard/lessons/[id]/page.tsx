@@ -31,7 +31,7 @@ function blockToSpeechText(block: LessonBlock): string {
     case "check":
       return block.question;
     case "image":
-      return block.caption || block.alt || "";
+      return ""; // images are hidden in the card reader -- nothing to narrate
     case "calculator":
       return `${block.title}. ${block.description}`;
     case "diagram":
@@ -227,9 +227,11 @@ export default function LessonPage() {
                 <h2 className="mb-4 text-lg font-semibold text-ink">{sections[cardIndex].title}</h2>
               )}
               <div className="space-y-4">
-                {sections[cardIndex].blocks.map((block, j) => (
-                  <LessonBlockView key={j} block={block} />
-                ))}
+                {sections[cardIndex].blocks
+                  .filter((block) => block.type !== "image")
+                  .map((block, j) => (
+                    <LessonBlockView key={j} block={block} />
+                  ))}
               </div>
             </section>
           </div>
