@@ -19,7 +19,6 @@ class LessonDetailOut(BaseModel):
     content_blocks: list[dict[str, Any]]
     estimated_minutes: int
     completed: bool
-    track_slug: str | None
     module_title: str | None
 
 
@@ -48,6 +47,5 @@ def get_lesson(lesson_id: int, user: User = Depends(get_current_user), db: Sessi
         content_blocks=lesson.content_blocks or [],
         estimated_minutes=lesson.estimated_minutes,
         completed=completed,
-        track_slug=lesson.track.slug if lesson.track else None,
         module_title=lesson.module.title if lesson.module else None,
     )

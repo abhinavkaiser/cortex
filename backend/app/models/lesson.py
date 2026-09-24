@@ -11,15 +11,13 @@ class Lesson(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    # NULL = Common Core (shown to every user regardless of track, before
-    # their track curriculum unlocks). Non-null = belongs to that track.
-    track_id: Mapped[int | None] = mapped_column(ForeignKey("tracks.id"), nullable=True)
-    track: Mapped["Track | None"] = relationship(back_populates="lessons")
-
-    # Optional grouping within a track's curriculum (e.g. AI Leader's
-    # "Module 2: The Economics of AI & Vendor Strategy") -- NULL for
-    # Common Core and for any track lesson that isn't part of a named
-    # module (the original flat single-lesson-per-track seed data).
+    # Which chapter (Module) this lesson belongs to -- every lesson today
+    # belongs to a Course via its Module (see course_id property below).
+    # Nullable in the schema because a handful of pre-Module-era track
+    # lessons used to be a real, flat (no-module) case -- see
+    # scripts/migrate_tracks_to_courses.py, which gave every one of those a
+    # real Module on migration. Kept nullable rather than tightened to
+    # NOT NULL since nothing currently depends on that guarantee.
     module_id: Mapped[int | None] = mapped_column(ForeignKey("modules.id"), nullable=True)
     module: Mapped["Module | None"] = relationship(back_populates="lessons")
 
@@ -76,8 +74,9 @@ class Lesson(Base):
     def course_id(self) -> int | None:
         """A lesson's course affiliation is derived, not stored -- always
         via its module (lesson.module.course_id) -- so there's no separate
-        column to keep in sync with Module.course_id. None for Common
-        Core, any Track lesson, or a moduleless lesson."""
+        column to keep in sync with Module.course_id. None only for a
+        lesson with no module at all, which shouldn't happen in practice
+        today (every lesson-creation path assigns a module)."""
         return self.module.course_id if self.module else None
 
 

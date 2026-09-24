@@ -1,12 +1,16 @@
 # Cortex AI
 
-Interactive AI training platform: role-based learning tracks (AI Leader /
-AI Practitioner / AI Developer), a shared Common Core every user completes
-first, a daily autonomous "Daily Pulse" micro-learning pipeline, an
-in-browser Prompt Playground sandbox, and a general-purpose **Course**
-system -- arbitrary instructor-authored courses (chapters, lessons,
-quizzes, certificates) that coexists with, and reuses the same underlying
-tables as, the fixed 3-Track curriculum. See "Courses vs. Tracks" below.
+Interactive AI training platform: a general-purpose **Course** catalog
+(chapters, lessons, quizzes, certificates, enrollment/progress tracking) --
+including the AI Leader / AI Practitioner / AI Developer curriculum and a
+shared AI Fundamentals course, all as ordinary courses -- a daily
+autonomous "Daily Pulse" micro-learning pipeline, and an in-browser Prompt
+Playground sandbox.
+
+Used to also have a separate, fixed 3-Track curriculum (assigned during
+onboarding) sitting alongside the Course system. That's gone now -- see
+"Formerly Tracks, now migrated into Courses" below for what changed and
+why `Track`/`DailyPulse.track_id` still exist in the schema.
 
 ## Stack
 
@@ -30,10 +34,9 @@ cortex-ai/
 │   │   │   ├── deps.py                # auth dependency (JWT -> current user)
 │   │   │   └── routes/
 │   │   │       ├── auth.py            # register / login
-│   │   │       ├── users.py           # onboarding, lesson completion, progress, courses-enrolled-in
-│   │   │       ├── daily_pulse.py     # today's pulse, quiz answer check
+│   │   │       ├── users.py           # lesson completion, identity/role lookup, courses-enrolled-in
+│   │   │       ├── daily_pulse.py     # today's pulses (one per track), quiz answer check
 │   │   │       ├── sandbox.py         # prompt playground execution
-│   │   │       ├── tracks.py          # open-catalog browsing of the 3 fixed Tracks
 │   │   │       ├── explore.py         # hand-built interactive AI concept demos
 │   │   │       ├── courses.py         # course catalog + instructor authoring (chapters/lessons/quiz) + enroll/roster
 │   │   │       ├── quizzes.py         # quiz-taking: fetch (no answers), grade+submit, attempt history
@@ -54,19 +57,17 @@ cortex-ai/
 │   │       ├── config.py, db.py, security.py
 │   ├── alembic/                       # migrations (SQLite-safe: render_as_batch)
 │   ├── scripts/
-│   │   ├── seed.py                    # seeds the 3 tracks + starter lessons + 2 example courses with quizzes
+│   │   ├── seed.py                    # seeds 3 bare Track rows (Daily Pulse only) + 2 example courses with quizzes
+│   │   ├── migrate_tracks_to_courses.py  # one-time: folds a legacy 3-Track curriculum + Common Core into real Courses
 │   │   └── run_daily_pulse.py         # cron entrypoint -- one pulse per track, daily
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── frontend/
 │   ├── app/
-│   │   ├── page.tsx                   # login/register
-│   │   ├── onboarding/page.tsx        # track selection
+│   │   ├── page.tsx                   # auto-login demo account, lands on the course catalog
 │   │   ├── certificates/verify/[code]/page.tsx  # PUBLIC, no-auth certificate verification
 │   │   └── dashboard/
-│   │       ├── layout.tsx             # shared top nav (Tracks/Courses/Daily Pulse/Sandbox/Certificates, + Instructor when role-gated)
-│   │       ├── common-core/page.tsx   # shared gate before track curriculum unlocks
-│   │       ├── tracks/[slug]/page.tsx # track curriculum progress
+│   │       ├── layout.tsx             # shared top nav (Courses/Daily Pulse/Sandbox/Certificates, + Instructor when role-gated)
 │   │       ├── daily-pulse/page.tsx
 │   │       ├── sandbox/page.tsx
 │   │       ├── courses/page.tsx               # course catalog, enroll, progress
@@ -91,15 +92,15 @@ actually need to hold real data, plus the general-purpose course system:
 
 | Model | Purpose |
 |---|---|
-| `User` | `email`, `hashed_password`, `role` (RBAC), `track_id` (nullable until onboarding), `common_core_completed_at` (nullable -- NULL is the "still in Common Core" gate) |
-| `Track` | The 3 specialization tracks. Common Core is **not** a Track row -- it's `Lesson.track_id IS NULL` |
-| `Module` | A named, ordered chapter grouping. Belongs to either a `Track` (`track_id`) or a `Course` (`course_id`), nullable on both, never both at once |
-| `Lesson` | `track_id` nullable (NULL = Common Core or a Course lesson -- see "Courses vs. Tracks" below), `module_id` nullable, `title`, `content_markdown`, `order_index`. Course affiliation is derived (`lesson.course_id` property -> `lesson.module.course_id`), not a stored column |
+| `User` | `email`, `hashed_password`, `role` (RBAC) |
+| `Track` | Formerly the 3 learner-facing specialization tracks; now survives purely as Daily Pulse's internal dependency (`DailyPulse.track_id`) -- see "Formerly Tracks, now migrated into Courses" below |
+| `Module` | A named, ordered chapter grouping, belonging to a `Course` (`course_id`) |
+| `Lesson` | `module_id` nullable, `title`, `content_markdown`, `order_index`. Course affiliation is derived (`lesson.course_id` property -> `lesson.module.course_id`), not a stored column |
 | `DailyPulse` | `pulse_date`, `track_id`, `summary`, `sandbox_exercise`, `quiz_question` + `quiz_choices` (JSON) + `quiz_correct_index`, `status` (draft/published/flagged), `eval_score` |
 | `PromptAttempt` | `prompt_text`, `model`, `temperature`, `top_p`, real `input_tokens`/`output_tokens`/`estimated_cost_usd`/`latency_ms`, `served_from_cache` |
 | `UserLessonProgress`* | join table: which user completed which lesson, when |
 | `SemanticCacheEntry`* | prompt + embedding + cached response, backing the semantic cache |
-| `Course`* | `slug`, `title`, `description`, `category` (free text), `instructor_id`, `is_published` -- an arbitrary, instructor-authored course, built from the same `Module`/`Lesson` tables a `Track` uses |
+| `Course`* | `slug`, `title`, `description`, `category` (free text), `instructor_id`, `is_published` -- the sole top-level content container now (chapters/lessons hang off it via `Module`/`Lesson`) |
 | `Enrollment`* | `user_id` + `course_id`, `enrolled_at`, `due_at` (nullable, no reminder system behind it), `completed_at` (nullable, set automatically) |
 | `Quiz`* | One per chapter (`module_id`), `title`, `passing_score` (0-100), `questions` (JSON list of `{question, choices, correct_index}` -- mirrors `DailyPulse.quiz_choices`/`quiz_correct_index`'s shape) |
 | `QuizAttempt`* | `user_id`, `quiz_id`, `answers` (JSON list of chosen indices), `score`, `passed`, `attempted_at` -- multiple attempts per user allowed |
@@ -109,23 +110,34 @@ actually need to hold real data, plus the general-purpose course system:
 the semantic cache, and the course system to hold real data rather than
 being unimplementable stubs.
 
-## Courses vs. Tracks
+## Formerly Tracks, now migrated into Courses
 
-The 3 Tracks (Leader/Practitioner/Developer) are this platform's own fixed,
-curated curriculum, assigned during onboarding. Courses are the opposite:
-arbitrary, instructor-authored, created/edited through the UI, and joined
-by choice (enrollment) rather than assignment. They deliberately share the
-same `Module` ("chapter") and `Lesson` tables rather than a parallel
-chapter/lesson schema -- a `Module` now has both `track_id` and `course_id`
-(nullable, mutually exclusive), so lesson rendering, completion tracking,
-and the reading UI (`/dashboard/lessons/[id]`) are the exact same code path
-either way. Only the top-level container, who can author it, and the
-completion mechanics (Common-Core gate vs. enrollment + quiz-passing +
-certificate) differ. Completing a lesson (`POST /api/users/lessons/complete`)
-checks which container the lesson belongs to and drives the right side
-effect -- flipping the Common Core gate for a Track/Common-Core lesson, or
-recomputing course progress and auto-issuing a certificate for a Course
-lesson -- never both, since a lesson only ever belongs to one.
+This app used to have a second, parallel content system: 3 fixed,
+curated Tracks (Leader/Practitioner/Developer) assigned during an
+onboarding flow, plus a shared Common Core every account passed through
+before its Track curriculum unlocked. That's gone as a learner-facing
+concept -- see `scripts/migrate_tracks_to_courses.py`, which folds all of
+it into 4 ordinary `Course` rows (`ai-leader`, `ai-practitioner`,
+`ai-developer`, `ai-fundamentals`), repoints every `Module`/`Lesson` at
+its new course, and backfills an `Enrollment` for every user who'd been
+assigned a track or had Common Core progress. `User.track_id` and
+`User.common_core_completed_at`, and `Module.track_id`/`Lesson.track_id`,
+are dropped columns (see the Alembic migration that follows that data
+migration) -- there's no more "which container does this lesson belong
+to" branching anywhere; every lesson belongs to a course via its module,
+full stop.
+
+**Why `Track` and `DailyPulse.track_id` still exist:** Daily Pulse (an
+unrelated feature -- a daily AI-news micro-lesson, generated per track by
+`scripts/run_daily_pulse.py`) still generates and labels one pulse per
+track, independent of any learner's course enrollments (see
+`agents/daily_pulse_agent.py`'s `TRACK_FRAMING`). The `tracks` table
+survives purely as that feature's internal dependency -- it is not
+browsable, assignable, or otherwise learner-facing anywhere in the app.
+Since a learner no longer has a single assigned track, `GET
+/api/daily-pulse/today` returns every track's published pulse for today
+(each labeled by track name) rather than one scoped to "the user's
+track" -- see that route's docstring.
 
 ## Running locally
 
@@ -227,9 +239,8 @@ Being direct about this rather than letting it look more finished than it is:
 - **Quiz question types are multiple-choice only**, mirroring
   `DailyPulse`'s existing quiz shape (`choices` + `correct_index`) for
   consistency rather than inventing free-text/multi-select grading.
-- **No dark theme.** The whole app (including the pre-existing Tracks/Daily
-  Pulse/Sandbox/Explore pages, not just the new Courses pages) runs a
-  single light, Udemy-style palette -- white background, `#f7f9fa` panels,
+- **No dark theme.** The whole app runs a single light, Udemy-style
+  palette -- white background, `#f7f9fa` panels,
   `#d1d7dc` borders, near-black body text, and a purple (`#5624d0`) brand
   color used only for primary actions/links/progress, not decoration. See
   `tailwind.config.ts`'s `brand`/`ink`/`ink-muted`/`surface`/`line` tokens

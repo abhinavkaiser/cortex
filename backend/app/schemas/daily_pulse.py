@@ -7,6 +7,11 @@ class DailyPulseOut(BaseModel):
     id: int
     pulse_date: date
     track_slug: str | None
+    # Learners no longer have an assigned track (see users.py's removed
+    # track_id) -- GET /api/daily-pulse/today now returns every track's
+    # pulse for today rather than one scoped to "the user's track", so the
+    # frontend needs a human label per pulse to tell them apart.
+    track_name: str | None
     summary: str
     sandbox_exercise: str
     quiz_question: str

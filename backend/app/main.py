@@ -4,13 +4,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import auth, certificates, courses, daily_pulse, explore, lessons, quizzes, sandbox, tracks, users
+from app.api.routes import auth, certificates, courses, daily_pulse, explore, lessons, quizzes, sandbox, users
 from app.core.db import Base, engine
 from app.models import *  # noqa: F401,F403 -- registers every model with Base.metadata before create_all
 
 app = FastAPI(
     title="Cortex AI",
-    description="Interactive AI training platform: role-based tracks, a daily agentic micro-learning pipeline, and an in-browser prompt sandbox.",
+    description="Interactive AI training platform: an instructor-authored Course catalog (including the migrated former Tracks curriculum), a daily agentic micro-learning pipeline, and an in-browser prompt sandbox.",
     version="0.1.0",
 )
 
@@ -34,7 +34,6 @@ app.include_router(lessons.router)
 app.include_router(daily_pulse.router)
 app.include_router(sandbox.router)
 app.include_router(explore.router)
-app.include_router(tracks.router)
 app.include_router(courses.router)
 app.include_router(quizzes.router)
 app.include_router(quizzes.quiz_attempts_router)

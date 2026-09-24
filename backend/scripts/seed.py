@@ -1,13 +1,24 @@
 #!/usr/bin/env python
-"""Seeds the three tracks and a handful of Common Core + track lessons, plus
-three example instructor-authored Courses (distinct from the fixed Tracks --
-see models/course.py) so the general-purpose course system is clickable
-end-to-end after a fresh `python scripts/seed.py`, not just empty scaffolding.
-The third course specifically exercises everything added on top of the
-original course system: video/document/link lesson blocks, all four quiz
-question types (including a short_answer one, with a real pending attempt
-already sitting in the instructor's grading queue), and a
+"""Seeds the three Tracks (Daily Pulse's own internal dependency only --
+see models/track.py; NOT a learner-facing curriculum anymore) plus three
+example instructor-authored Courses so the general-purpose course system is
+clickable end-to-end after a fresh `python scripts/seed.py`, not just empty
+scaffolding. The third course specifically exercises everything added on
+top of the original course system: video/document/link lesson blocks, all
+four quiz question types (including a short_answer one, with a real
+pending attempt already sitting in the instructor's grading queue), and a
 certificate_validity_days expiry. Run once against a fresh database.
+
+Used to also seed Common Core + per-track lessons directly as Track-owned
+Lesson rows (Lesson.track_id) -- that column, and the whole "fixed
+curriculum Track" concept, is gone now (see README's "Formerly Tracks,
+now migrated into Courses"
+and scripts/migrate_tracks_to_courses.py, which is how an EXISTING
+database with that legacy content gets it folded into real Courses). A
+brand-new dev database has no such legacy content to fold in, so this
+script no longer fabricates it -- it seeds Tracks bare (rows only, for
+Daily Pulse to generate pulses against) and leaves course content to the
+Course seeding below.
 """
 
 import sys
@@ -70,18 +81,6 @@ TRACKS = [
     {"slug": "practitioner", "name": "AI Practitioner", "description": "Practical, workflow-level AI skills for people using AI tools day-to-day."},
     {"slug": "developer", "name": "AI Developer", "description": "Technical depth for people building with AI/ML."},
 ]
-
-COMMON_CORE_LESSONS = [
-    {"slug": "what-is-a-language-model", "title": "What a Language Model Actually Does", "order_index": 1, "estimated_minutes": 8},
-    {"slug": "prompting-fundamentals", "title": "Prompting Fundamentals", "order_index": 2, "estimated_minutes": 10},
-    {"slug": "ai-risk-and-limitations", "title": "Where AI Breaks: Hallucination, Bias, and Limits", "order_index": 3, "estimated_minutes": 10},
-]
-
-TRACK_LESSONS = {
-    "leader": [{"slug": "ai-roi-and-org-design", "title": "Evaluating AI ROI and Org Design", "order_index": 1, "estimated_minutes": 12}],
-    "practitioner": [{"slug": "ai-augmented-workflows", "title": "Redesigning Your Workflow Around AI", "order_index": 1, "estimated_minutes": 12}],
-    "developer": [{"slug": "building-with-llm-apis", "title": "Building Production Features on LLM APIs", "order_index": 1, "estimated_minutes": 15}],
-}
 
 INSTRUCTOR = {"email": "instructor@cortex.ai", "password": "instructorpass123", "full_name": "Priya Sharma"}
 
@@ -495,25 +494,12 @@ def main():
     _write_demo_pdf()
     db = SessionLocal()
     try:
-        track_by_slug = {}
+        # Track rows only -- Daily Pulse's cron job (scripts/run_daily_pulse.py)
+        # needs one Track per specialization to generate against; no Lesson
+        # content hangs off these anymore (see module docstring above).
         for t in TRACKS:
-            existing = db.query(Track).filter(Track.slug == t["slug"]).first()
-            if existing:
-                track_by_slug[t["slug"]] = existing
-                continue
-            track = Track(**t)
-            db.add(track)
-            db.flush()
-            track_by_slug[t["slug"]] = track
-
-        for lesson_data in COMMON_CORE_LESSONS:
-            if not db.query(Lesson).filter(Lesson.slug == lesson_data["slug"]).first():
-                db.add(Lesson(track_id=None, content_markdown="", **lesson_data))
-
-        for slug, lessons in TRACK_LESSONS.items():
-            for lesson_data in lessons:
-                if not db.query(Lesson).filter(Lesson.slug == lesson_data["slug"]).first():
-                    db.add(Lesson(track_id=track_by_slug[slug].id, content_markdown="", **lesson_data))
+            if not db.query(Track).filter(Track.slug == t["slug"]).first():
+                db.add(Track(**t))
 
         db.commit()
 
@@ -669,8 +655,7 @@ def main():
 
         db.commit()
         print(
-            f"Seeded {len(TRACKS)} tracks, {len(COMMON_CORE_LESSONS)} common-core lessons, "
-            f"{sum(len(v) for v in TRACK_LESSONS.values())} track lessons, "
+            f"Seeded {len(TRACKS)} tracks (Daily Pulse only, no learner-facing curriculum), "
             f"{course_count} courses ({chapter_count} chapters, {lesson_count} lessons, {quiz_count} quizzes), "
             f"demo learner {'with' if pending_attempt_seeded else 'without new'} a pending short-answer attempt queued for grading."
         )

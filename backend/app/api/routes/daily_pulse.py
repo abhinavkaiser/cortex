@@ -12,36 +12,45 @@ from app.schemas.daily_pulse import DailyPulseOut, QuizAnswerRequest, QuizAnswer
 router = APIRouter(prefix="/api/daily-pulse", tags=["daily-pulse"])
 
 
-@router.get("/today", response_model=DailyPulseOut)
-def get_today_pulse(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Serves the JSON payload the frontend's Daily Pulse card renders --
-    only ever a PUBLISHED pulse (one that cleared evals), scoped to the
-    user's track. A user with no track yet (still in Common Core) gets the
-    track_id IS NULL pulse if one exists, else a 404 telling the frontend
-    there's nothing to show today."""
-    pulse = (
-        db.query(DailyPulse)
-        .filter(
-            DailyPulse.pulse_date == date.today(),
-            DailyPulse.track_id == user.track_id,
-            DailyPulse.status == PulseStatus.PUBLISHED,
-        )
-        .first()
-    )
-    if not pulse:
-        raise HTTPException(404, "No published pulse for today yet -- check back after the daily generation job runs.")
+@router.get("/today", response_model=list[DailyPulseOut])
+def list_today_pulses(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Serves the JSON payloads the frontend's Daily Pulse page renders --
+    only ever PUBLISHED pulses (ones that cleared evals).
 
-    return DailyPulseOut(
-        id=pulse.id,
-        pulse_date=pulse.pulse_date,
-        track_slug=pulse.track.slug if pulse.track else None,
-        summary=pulse.summary,
-        sandbox_exercise=pulse.sandbox_exercise,
-        quiz_question=pulse.quiz_question,
-        quiz_choices=pulse.quiz_choices,
-        source_urls=pulse.source_urls,
-        created_at=pulse.created_at,
+    Used to be scoped to "the current user's track" (User.track_id). Now
+    that Tracks are no longer a learner-facing concept (a user doesn't
+    have a track -- see the User model), there's no single track left to
+    scope this to. Rather than silently picking one track's pulse (which
+    would arbitrarily hide the other two tracks' content every day),
+    this returns every track's published pulse for today -- Daily Pulse's
+    generation/framing/storage (see agents/daily_pulse_agent.py,
+    scripts/run_daily_pulse.py) is completely untouched, still one pulse
+    per Track, per day; only how this route *serves* that unchanged data
+    to a now-track-less user changed."""
+    pulses = (
+        db.query(DailyPulse)
+        .filter(DailyPulse.pulse_date == date.today(), DailyPulse.status == PulseStatus.PUBLISHED)
+        .order_by(DailyPulse.track_id)
+        .all()
     )
+    if not pulses:
+        raise HTTPException(404, "No published pulses for today yet -- check back after the daily generation job runs.")
+
+    return [
+        DailyPulseOut(
+            id=p.id,
+            pulse_date=p.pulse_date,
+            track_slug=p.track.slug if p.track else None,
+            track_name=p.track.name if p.track else None,
+            summary=p.summary,
+            sandbox_exercise=p.sandbox_exercise,
+            quiz_question=p.quiz_question,
+            quiz_choices=p.quiz_choices,
+            source_urls=p.source_urls,
+            created_at=p.created_at,
+        )
+        for p in pulses
+    ]
 
 
 @router.post("/answer", response_model=QuizAnswerResult)
