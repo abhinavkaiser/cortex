@@ -47,6 +47,7 @@ class CourseSummary(BaseModel):
     instructor_id: int
     chapter_count: int
     lesson_count: int
+    estimated_total_minutes: int  # sum of every lesson's estimated_minutes -- "how long is this course"
     certificate_validity_days: int | None
 
     enrolled: bool
@@ -142,6 +143,7 @@ class CourseDetailOut(BaseModel):
     is_published: bool
     instructor_id: int
     certificate_validity_days: int | None
+    estimated_total_minutes: int
 
     enrolled: bool
     progress_pct: int | None

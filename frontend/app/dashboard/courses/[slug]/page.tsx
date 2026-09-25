@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import type { CourseDetail } from "@/lib/types";
+import { formatDuration } from "@/lib/format";
 
 export default function CourseDetailPage() {
   const params = useParams<{ slug: string }>();
@@ -50,6 +51,7 @@ export default function CourseDetailPage() {
           {course.category && <div className="mb-1 text-xs font-medium uppercase tracking-wide text-brand">{course.category}</div>}
           <h1 className="text-2xl font-semibold">{course.title}</h1>
           <p className="mt-1 text-sm text-ink-muted">{course.description}</p>
+          <p className="mt-1 text-xs font-medium text-ink-muted">⏱ {formatDuration(course.estimated_total_minutes)} total</p>
         </div>
         {!course.enrolled && (
           <button onClick={enroll} disabled={busy} className="shrink-0 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-40">

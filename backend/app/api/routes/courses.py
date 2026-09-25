@@ -64,6 +64,10 @@ def _get_course_or_404(db: Session, course_id: int) -> Course:
     return course
 
 
+def _course_total_minutes(course: Course) -> int:
+    return sum(l.estimated_minutes for m in course.modules for l in m.lessons)
+
+
 @router.get("", response_model=list[CourseSummary])
 def list_courses(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Catalog: learners see published courses only; an instructor/admin
@@ -88,6 +92,7 @@ def list_courses(user: User = Depends(get_current_user), db: Session = Depends(g
                 instructor_id=c.instructor_id,
                 chapter_count=len(c.modules),
                 lesson_count=sum(len(m.lessons) for m in c.modules),
+                estimated_total_minutes=_course_total_minutes(c),
                 certificate_validity_days=c.certificate_validity_days,
                 enrolled=enrollment is not None,
                 progress_pct=course_progress_pct(db, user.id, c.id) if enrollment else None,
@@ -123,6 +128,7 @@ def create_course(body: CourseCreate, user: User = Depends(get_current_user), db
         instructor_id=course.instructor_id,
         chapter_count=0,
         lesson_count=0,
+        estimated_total_minutes=0,
         certificate_validity_days=course.certificate_validity_days,
         enrolled=False,
         progress_pct=None,
@@ -198,6 +204,7 @@ def get_course_detail(slug: str, user: User = Depends(get_current_user), db: Ses
         is_published=course.is_published,
         instructor_id=course.instructor_id,
         certificate_validity_days=course.certificate_validity_days,
+        estimated_total_minutes=_course_total_minutes(course),
         enrolled=enrollment is not None,
         progress_pct=course_progress_pct(db, user.id, course.id) if enrollment else None,
         completed_at=enrollment.completed_at if enrollment else None,
@@ -238,6 +245,7 @@ def update_course(course_id: int, body: CourseUpdate, user: User = Depends(get_c
         instructor_id=course.instructor_id,
         chapter_count=len(course.modules),
         lesson_count=sum(len(m.lessons) for m in course.modules),
+        estimated_total_minutes=_course_total_minutes(course),
         certificate_validity_days=course.certificate_validity_days,
         enrolled=False,
         progress_pct=None,

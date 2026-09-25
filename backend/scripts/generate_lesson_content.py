@@ -28,12 +28,17 @@ from app.core.db import SessionLocal
 from app.models.lesson import Lesson
 from app.services import claude_client
 
-TRACK_FRAMING = {
-    None: "a general audience with no assumed background -- this is Common Core, the shared foundation everyone reads before branching into a specialized track.",
-    "leader": "an AI Leader (exec/manager) who needs to make organizational and strategic decisions about AI -- budget, risk, team structure, vendor choices. Keep implementation detail light; focus on what a decision-maker needs to reason well.",
-    "practitioner": "an AI Practitioner (product/ops person using AI tools day-to-day) who needs practical, workflow-level understanding they can apply this week, not academic theory.",
-    "developer": "an AI Developer (builds with AI/ML) who needs technical substance -- how it actually works, real tradeoffs, what they'd need to know to implement or evaluate it correctly.",
+# Keyed by Course.slug now that Tracks were merged into Courses (see
+# scripts/migrate_tracks_to_courses.py) -- a lesson's audience framing comes
+# from which course it lives in, via lesson.module.course, not a dropped
+# lesson.track relationship.
+COURSE_FRAMING = {
+    "ai-fundamentals": "a general audience with no assumed background -- this is the shared foundation everyone reads before branching into a specialized course.",
+    "ai-leader": "an AI Leader (exec/manager) who needs to make organizational and strategic decisions about AI -- budget, risk, team structure, vendor choices. Keep implementation detail light; focus on what a decision-maker needs to reason well.",
+    "ai-practitioner": "an AI Practitioner (product/ops person using AI tools day-to-day) who needs practical, workflow-level understanding they can apply this week, not academic theory.",
+    "ai-developer": "an AI Developer (builds with AI/ML) who needs technical substance -- how it actually works, real tradeoffs, what they'd need to know to implement or evaluate it correctly.",
 }
+DEFAULT_FRAMING = "a working professional who wants practical, applicable understanding, not academic theory."
 
 # Verbatim from the original AI Leader curriculum brief -- used to ground
 # capstone/certification-project generation in the exact exercise that was
@@ -49,8 +54,8 @@ CAPSTONE_BRIEFS = {
 
 
 def build_prompt(lesson: Lesson) -> str:
-    track_slug = lesson.track.slug if lesson.track else None
-    framing = TRACK_FRAMING.get(track_slug, TRACK_FRAMING["practitioner"])
+    course_slug = lesson.module.course.slug if lesson.module and lesson.module.course else None
+    framing = COURSE_FRAMING.get(course_slug, DEFAULT_FRAMING)
     module_context = ""
     if lesson.module:
         module_context = f'\n\nThis lesson is part of "{lesson.module.title}". That module\'s objective: {lesson.module.objective}'
@@ -154,10 +159,10 @@ def generate_one(db, lesson: Lesson) -> int:
 
 def main():
     only_title = None
-    force_track = None
+    force_course = None
     args = sys.argv[1:]
-    if args and args[0] == "--track" and len(args) > 1:
-        force_track = args[1]
+    if args and args[0] == "--course" and len(args) > 1:
+        force_course = args[1]
     elif args:
         only_title = args[0]
 
@@ -165,17 +170,20 @@ def main():
     try:
         if only_title:
             lessons = db.query(Lesson).filter(Lesson.title == only_title).all()
-        elif force_track:
-            # Force-regenerate every lesson in a track regardless of
+        elif force_course:
+            # Force-regenerate every lesson in a course regardless of
             # whether it already has content -- for upgrading existing
             # lessons to a new depth/quality bar, not just filling gaps.
-            from app.models.track import Track
+            from app.models.course import Course
 
-            track = db.query(Track).filter(Track.slug == force_track).first()
-            if not track:
-                print(f"No track {force_track!r}.")
+            course = db.query(Course).filter(Course.slug == force_course).first()
+            if not course:
+                print(f"No course {force_course!r}.")
                 return
-            lessons = db.query(Lesson).filter(Lesson.track_id == track.id).order_by(Lesson.order_index).all()
+            lessons = sorted(
+                (l for m in course.modules for l in m.lessons),
+                key=lambda l: (l.module.order_index, l.order_index),
+            )
         else:
             # JSON-column equality against a Python list isn't reliable across
             # backends at the SQL level -- filter in Python instead.
@@ -187,7 +195,7 @@ def main():
 
         succeeded, failed = 0, []
         for lesson in lessons:
-            label = lesson.module.title if lesson.module else ("Common Core" if not lesson.track_id else lesson.track.slug)
+            label = lesson.module.title if lesson.module else "(no module)"
             print(f"Generating: {lesson.title} ({label})...")
             try:
                 n = generate_one(db, lesson)

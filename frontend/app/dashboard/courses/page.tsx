@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import type { CourseSummary } from "@/lib/types";
+import { formatDuration } from "@/lib/format";
 
 export default function CoursesCatalogPage() {
   const [courses, setCourses] = useState<CourseSummary[] | null>(null);
@@ -60,7 +61,7 @@ export default function CoursesCatalogPage() {
               </div>
               <p className="mt-2 text-sm text-ink-muted">{c.description}</p>
               <div className="mt-3 text-xs text-ink-muted">
-                {c.chapter_count} chapters &middot; {c.lesson_count} lessons
+                {c.chapter_count} chapters &middot; {c.lesson_count} lessons &middot; {formatDuration(c.estimated_total_minutes)}
               </div>
 
               {c.enrolled ? (

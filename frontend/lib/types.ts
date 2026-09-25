@@ -253,6 +253,7 @@ export interface CourseSummary {
   instructor_id: number;
   chapter_count: number;
   lesson_count: number;
+  estimated_total_minutes: number;
   certificate_validity_days: number | null;
   enrolled: boolean;
   progress_pct: number | null;
@@ -296,6 +297,7 @@ export interface CourseDetail {
   is_published: boolean;
   instructor_id: number;
   certificate_validity_days: number | null;
+  estimated_total_minutes: number;
   enrolled: boolean;
   progress_pct: number | null;
   completed_at: string | null;
