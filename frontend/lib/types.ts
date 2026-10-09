@@ -279,6 +279,26 @@ export interface QuizSummary {
   max_attempts: number | null;
 }
 
+// A chapter's revision deck. Plain text both sides -- rendered as text,
+// never as markup (see backend/app/agents/flashcards.py).
+export interface FlashcardCard {
+  front: string;
+  back: string;
+}
+
+export interface FlashcardDeckSummary {
+  id: number;
+  title: string;
+  card_count: number;
+}
+
+export interface FlashcardDeck {
+  id: number;
+  title: string;
+  module_title: string;
+  cards: FlashcardCard[];
+}
+
 export interface Chapter {
   id: number;
   title: string;
@@ -286,6 +306,7 @@ export interface Chapter {
   order_index: number;
   lessons: CourseLessonOut[];
   quiz: QuizSummary | null;
+  flashcard_deck: FlashcardDeckSummary | null;
 }
 
 export interface CourseDetail {

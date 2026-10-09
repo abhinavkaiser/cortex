@@ -9,6 +9,7 @@ import type {
   CourseSummary,
   DailyPulse,
   EmbedResponse,
+  FlashcardDeck,
   GradeAttemptResult,
   LessonDetail,
   PendingAttempt,
@@ -201,6 +202,10 @@ export const api = {
     request<QuizAttemptResult>(`/api/quizzes/${quizId}/attempt`, { method: "POST", body: JSON.stringify({ answers, question_order }) }),
 
   getQuizAttempts: (quizId: number) => request<QuizAttemptSummary[]>(`/api/quizzes/${quizId}/attempts`),
+
+  // ---- Flashcards ---------------------------------------------------------
+
+  getFlashcardDeck: (deckId: number) => request<FlashcardDeck>(`/api/flashcards/${deckId}`),
 
   // ---- Instructor grading queue (short_answer questions) -------------------
 

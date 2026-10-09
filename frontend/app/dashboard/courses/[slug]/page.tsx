@@ -112,6 +112,21 @@ export default function CourseDetailPage() {
                 </Link>
               ))}
 
+              {chapter.flashcard_deck && (
+                <Link
+                  href={`/dashboard/courses/${course.slug}/flashcards/${chapter.flashcard_deck.id}`}
+                  className="flex items-center justify-between rounded-lg border border-dashed border-line px-4 py-3 transition hover:border-brand/40"
+                >
+                  <div>
+                    <div className="text-sm font-medium text-ink">{chapter.flashcard_deck.title}</div>
+                    <div className="text-xs text-ink-muted">
+                      {chapter.flashcard_deck.card_count} cards &middot; review key terms
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-xs font-medium text-brand">Review &rarr;</span>
+                </Link>
+              )}
+
               {chapter.quiz && (
                 <Link
                   href={`/dashboard/courses/${course.slug}/quiz/${chapter.quiz.id}`}
