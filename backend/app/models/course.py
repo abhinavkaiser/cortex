@@ -126,6 +126,39 @@ class Quiz(Base):
     attempts: Mapped[list["QuizAttempt"]] = relationship(back_populates="quiz")
 
 
+class FlashcardDeck(Base):
+    """One reviewable card deck per chapter (Module) -- the spaced-review
+    counterpart to that chapter's Quiz.
+
+    Deliberately much simpler than Quiz: no attempts, no scoring, no bearing
+    on course completion or certificates. A deck is a study aid the learner
+    flips through as often as they like, so there is nothing to record. That
+    also means no per-card mastery state -- if "know it / still learning"
+    tracking is ever wanted, it needs its own table (one row per
+    user+card), not a column here.
+
+    Upserted by module_id the same way Quiz is (POST .../flashcards replaces
+    the existing deck rather than adding a second one), hence module_id is
+    unique here -- Quiz predates that convention and enforces it only in the
+    route.
+
+    cards is a JSON list of {"front": "...", "back": "..."} -- both plain
+    text, never HTML. See app/agents/flashcards.py for the validator that
+    guarantees that shape before anything is stored.
+    """
+
+    __tablename__ = "flashcard_decks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    module_id: Mapped[int] = mapped_column(ForeignKey("modules.id"), nullable=False, unique=True)
+    module: Mapped["Module"] = relationship(back_populates="flashcard_deck")
+
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    cards: Mapped[list[dict]] = mapped_column(JSON, default=list)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class QuizAttempt(Base):
     """Multiple attempts per user are allowed (a learner can retake, subject
     to Quiz.max_attempts) -- course-completion logic (see users.py's

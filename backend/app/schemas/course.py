@@ -132,6 +132,7 @@ class ChapterOut(BaseModel):
     order_index: int
     lessons: list[CourseLessonOut]
     quiz: QuizSummaryOut | None
+    flashcard_deck: FlashcardDeckSummaryOut | None = None
 
 
 class CourseDetailOut(BaseModel):
@@ -209,6 +210,37 @@ class QuizCreate(BaseModel):
     questions: list[QuizQuestionCreate]
     randomize_questions: bool = False
     max_attempts: int | None = None
+
+
+class FlashcardCard(BaseModel):
+    """Plain text both sides -- rendered as text, never as markup."""
+
+    front: str
+    back: str
+
+
+class FlashcardDeckCreate(BaseModel):
+    """POST .../flashcards upserts, same as the quiz route -- one deck per
+    chapter (enforced by a unique constraint on module_id)."""
+
+    title: str
+    cards: list[FlashcardCard]
+
+
+class FlashcardDeckSummaryOut(BaseModel):
+    """What the course-detail view needs: enough to show and link the deck
+    without shipping every card on a page that isn't reviewing them."""
+
+    id: int
+    title: str
+    card_count: int
+
+
+class FlashcardDeckOut(BaseModel):
+    id: int
+    title: str
+    module_title: str
+    cards: list[FlashcardCard]
 
 
 class QuizQuestionTakeOut(BaseModel):

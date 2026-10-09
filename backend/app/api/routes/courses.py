@@ -13,12 +13,15 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.db import get_db
-from app.models.course import Certificate, Course, Enrollment, Quiz, QuizAttempt
+from app.models.course import Certificate, Course, Enrollment, FlashcardDeck, Quiz, QuizAttempt
 from app.models.lesson import Lesson, UserLessonProgress
 from app.models.module import Module
 from app.models.user import User, UserRole
 from app.schemas.course import (
     ChapterCreate,
+    FlashcardDeckCreate,
+    FlashcardDeckOut,
+    FlashcardDeckSummaryOut,
     ChapterOut,
     ChapterUpdate,
     CourseCreate,
@@ -37,6 +40,10 @@ from app.schemas.course import (
 from app.services.course_progress import course_progress_pct
 
 router = APIRouter(prefix="/api/courses", tags=["courses"])
+# Learner-facing deck reads live on their own resource path (a deck is
+# fetched by its own id when reviewing, not via its course) -- same
+# split quizzes.py uses for /api/quizzes vs course-nested authoring.
+flashcards_router = APIRouter(prefix="/api/flashcards", tags=["flashcards"])
 
 # Course-uploaded documents (PDFs) -- same static-file convention
 # app/agents/image_mcp.py already uses for generated images, served by the
@@ -187,6 +194,15 @@ def get_course_detail(slug: str, user: User = Depends(get_current_user), db: Ses
                     for l in m.lessons
                 ],
                 quiz=quiz_out,
+                flashcard_deck=(
+                    FlashcardDeckSummaryOut(
+                        id=m.flashcard_deck.id,
+                        title=m.flashcard_deck.title,
+                        card_count=len(m.flashcard_deck.cards or []),
+                    )
+                    if m.flashcard_deck
+                    else None
+                ),
             )
         )
 
@@ -432,6 +448,32 @@ def upsert_chapter_quiz(
     )
 
 
+@router.post("/{course_id}/chapters/{module_id}/flashcards", response_model=FlashcardDeckSummaryOut)
+def upsert_chapter_flashcards(
+    course_id: int, module_id: int, body: FlashcardDeckCreate,
+    user: User = Depends(get_current_user), db: Session = Depends(get_db),
+):
+    """Upserts a chapter's flashcard deck -- same owner/admin gate and
+    replace-not-append semantics as upsert_chapter_quiz above."""
+    course = _get_course_or_404(db, course_id)
+    _require_owner_or_admin(course, user)
+    module = _get_chapter_or_404(db, course, module_id)
+
+    cards = [{"front": c.front, "back": c.back} for c in body.cards]
+
+    deck = db.query(FlashcardDeck).filter(FlashcardDeck.module_id == module.id).first()
+    if deck:
+        deck.title = body.title
+        deck.cards = cards
+    else:
+        deck = FlashcardDeck(module_id=module.id, title=body.title, cards=cards)
+        db.add(deck)
+
+    db.commit()
+    db.refresh(deck)
+    return FlashcardDeckSummaryOut(id=deck.id, title=deck.title, card_count=len(deck.cards or []))
+
+
 @router.post("/{course_id}/upload", response_model=UploadOut)
 async def upload_course_document(
     course_id: int, file: UploadFile, user: User = Depends(get_current_user), db: Session = Depends(get_db)
@@ -499,3 +541,28 @@ def get_roster(course_id: int, user: User = Depends(get_current_user), db: Sessi
         )
         for e in enrollments
     ]
+
+
+@flashcards_router.get("/{deck_id}", response_model=FlashcardDeckOut)
+def get_flashcard_deck(deck_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Fetch a deck to review. Any authenticated user, not enrollment-gated
+    -- reviewing a chapter's key terms is no more privileged than reading
+    the lesson it came from, and gating it would mean a learner who hasn't
+    enrolled yet can read the material but not revise it."""
+    deck = db.get(FlashcardDeck, deck_id)
+    if not deck:
+        raise HTTPException(404, "Flashcard deck not found")
+
+    module = deck.module
+    course = module.course if module else None
+    # Still honour draft visibility: an unpublished course's content stays
+    # with its owner/admins, same rule get_course_detail applies.
+    if course and not course.is_published and course.instructor_id != user.id and user.role != UserRole.ADMIN:
+        raise HTTPException(404, "Flashcard deck not found")
+
+    return FlashcardDeckOut(
+        id=deck.id,
+        title=deck.title,
+        module_title=module.title if module else "",
+        cards=deck.cards or [],
+    )

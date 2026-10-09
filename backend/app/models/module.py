@@ -36,3 +36,7 @@ class Module(Base):
     lessons: Mapped[list["Lesson"]] = relationship(back_populates="module", order_by="Lesson.order_index")
     # A chapter's quiz, if it has one -- see models/course.py's Quiz.
     quiz: Mapped["Quiz | None"] = relationship(back_populates="module", uselist=False)
+    # A chapter's flashcard deck, if it has one -- see models/course.py's
+    # FlashcardDeck. Independent of quiz: a chapter can have either, both,
+    # or neither.
+    flashcard_deck: Mapped["FlashcardDeck | None"] = relationship(back_populates="module", uselist=False)
