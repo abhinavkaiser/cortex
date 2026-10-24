@@ -105,7 +105,8 @@ def deploy(python, report):
         if (APP / 'frontend' / name).read_bytes() != (CHECKOUT / 'frontend' / name).read_bytes():
             raise RuntimeError('Dependency changes require a separate deployment procedure')
     revision = run('git', '-C', str(CHECKOUT), 'rev-parse', 'HEAD')
-    git('fetch', str(CHECKOUT), revision)
+    fetch_options = ['--unshallow'] if git('rev-parse', '--is-shallow-repository') == 'true' else []
+    git('fetch', *fetch_options, str(CHECKOUT), revision)
     git('merge-base', '--is-ancestor', report['revision'], revision)
     backup_dir = Path('/opt/cortex-backups') / ('learning-' + datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + revision[:10])
     backup_dir.mkdir(parents=True, mode=0o700)
