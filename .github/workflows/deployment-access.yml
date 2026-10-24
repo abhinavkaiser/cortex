@@ -1,0 +1,51 @@
+name: Cortex server access
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/deployment-access
+    paths:
+      - .github/workflows/deployment-access.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cortex-production-access
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    runs-on: [self-hosted, linux, x64, cortex-production]
+    timeout-minutes: 5
+    steps:
+      - name: Verify server identity and inspect deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Server: $(hostname)"
+          echo "Execution user: $(id -un)"
+          test "$(id -u)" = 0
+          test -d /opt/cortex/backend
+          echo "Application directory: /opt/cortex"
+          echo "Application revision:"
+          git -c safe.directory=/opt/cortex -C /opt/cortex rev-parse HEAD
+          echo "Application path ownership:"
+          stat -c '%U:%G %a %n' /opt/cortex /opt/cortex/backend /opt/cortex/frontend
+          echo "Application service metadata (no environment or command arguments):"
+          mapfile -t units < <(systemctl list-unit-files --type=service --no-legend --no-pager | awk '$1 ~ /cortex|uvicorn|nextjs|pm2|nginx/ {print $1}')
+          for unit in "${units[@]}"; do
+            systemctl show "$unit" --property=Id,User,WorkingDirectory,FragmentPath,ActiveState
+          done
+          echo "Runtime versions:"
+          python3 --version
+          if command -v node >/dev/null; then node --version; fi
+          if command -v npm >/dev/null; then npm --version; fi
+          echo "Application database present:"
+          test -f /opt/cortex/backend/ai_academy.db
+          echo yes
+          echo "Production health:"
+          curl --fail --silent --show-error --max-time 20 https://cortex.xiox.in/health
+          echo
+          echo 'Read-only server access verified; no application files or services changed.'
