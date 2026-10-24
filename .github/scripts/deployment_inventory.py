@@ -34,6 +34,23 @@ def inventory():
         services.append(metadata)
     revision = command('git', '-c', 'safe.directory=/opt/cortex', '-C', str(application), 'rev-parse', 'HEAD')
     dirty = bool(command('git', '-c', 'safe.directory=/opt/cortex', '-C', str(application), 'status', '--porcelain', '--untracked-files=no'))
+    pm2_processes = []
+    pm2_home = Path('/root/.pm2')
+    # Only query the already-running production PM2 daemon; never start one.
+    if (pm2_home / 'pm2.pid').is_file() and (pm2_home / 'rpc.sock').exists():
+        pm2_environment = os.environ.copy()
+        pm2_environment['PM2_HOME'] = str(pm2_home)
+        result = subprocess.run(['pm2', 'jlist'], env=pm2_environment, capture_output=True, text=True, check=True)
+        for process in json.loads(result.stdout):
+            metadata = process.get('pm2_env', {})
+            pm2_processes.append({
+                'name': process.get('name'),
+                'id': process.get('pm_id'),
+                'status': metadata.get('status'),
+                'cwd': metadata.get('pm_cwd'),
+                'executable': metadata.get('pm_exec_path'),
+                'interpreter': metadata.get('exec_interpreter'),
+            })
     with urllib.request.urlopen('https://cortex.xiox.in/health', timeout=20) as response:
         health = json.load(response)
     if health != {'status': 'ok'}:
@@ -45,6 +62,7 @@ def inventory():
         'revision': revision,
         'tracked_changes_present': dirty,
         'services': services,
+        'pm2_processes': pm2_processes,
         'runtime_paths': {name: shutil.which(name) for name in ('python3', 'node', 'npm')},
         'database': '/opt/cortex/backend/ai_academy.db',
         'health': health,
