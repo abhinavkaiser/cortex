@@ -1,0 +1,19 @@
+name: Cortex learning assessment
+on:
+  push:
+    branches: [codex/learning-assessment]
+    paths:
+      - .github/scripts/learning_assessment_audit.py
+      - .github/workflows/learning-assessment.yml
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: [self-hosted, linux, x64, cortex-production]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Read-only course freshness and automation audit
+        run: python3 .github/scripts/learning_assessment_audit.py
