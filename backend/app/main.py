@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import auth, certificates, courses, daily_pulse, explore, lessons, quizzes, sandbox, users
+from app.api.routes import auth, certificates, courses, daily_pulse, explore, learning, lessons, quizzes, sandbox, users
 from app.core.db import Base, engine
 from app.models import *  # noqa: F401,F403 -- registers every model with Base.metadata before create_all
 
@@ -31,6 +31,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(lessons.router)
+app.include_router(learning.router)
 app.include_router(daily_pulse.router)
 app.include_router(sandbox.router)
 app.include_router(explore.router)

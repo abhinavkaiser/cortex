@@ -21,6 +21,7 @@ class DailyPulseOut(BaseModel):
     # separate answer-check endpoint.
     source_urls: list[str]
     created_at: datetime
+    is_latest_from_earlier_day: bool = False
 
     class Config:
         from_attributes = True

@@ -16,6 +16,7 @@ from app.core.db import get_db
 from app.models.course import Certificate, Course, Enrollment, FlashcardDeck, Quiz, QuizAttempt
 from app.models.lesson import Lesson, UserLessonProgress
 from app.models.module import Module
+from app.services import learning_quizzes
 from app.models.user import User, UserRole
 from app.schemas.course import (
     ChapterCreate,
@@ -162,8 +163,7 @@ def get_course_detail(slug: str, user: User = Depends(get_current_user), db: Ses
         quiz_out = None
         if m.quiz:
             best = (
-                db.query(QuizAttempt)
-                .filter(QuizAttempt.user_id == user.id, QuizAttempt.quiz_id == m.quiz.id)
+                learning_quizzes.attempts(db, user.id, m.quiz)
                 .order_by(QuizAttempt.score.desc())
                 .first()
             )

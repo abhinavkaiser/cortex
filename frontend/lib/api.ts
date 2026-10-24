@@ -1,3 +1,4 @@
+import type { CurriculumUpdate, LearningUnit, PathUnit, PracticeResult } from "./learning";
 import type {
   AgentResponse,
   AnswerValue,
@@ -85,6 +86,15 @@ export const api = {
     }),
 
   getLesson: (lessonId: number) => request<LessonDetail>(`/api/lessons/${lessonId}`),
+
+  getCurriculumStatus: () => request<{ checked_at: string; checked_sources: string[]; errors: { source: string; error: string }[] } | null>("/api/learning/updates/status"),
+  getLearningPath: () => request<PathUnit[]>("/api/learning/path"),
+  getLearningUnit: (id: number) => request<LearningUnit | null>(`/api/learning/lessons/${id}`),
+  getLessonUpdates: (id: number) => request<CurriculumUpdate[]>(`/api/learning/lessons/${id}/updates`),
+  submitPractice: (id: number, version: string, answers: number[], reflection: string) =>
+    request<PracticeResult>(`/api/learning/lessons/${id}/practice`, {
+      method: "POST", body: JSON.stringify({ version, answers, reflection }),
+    }),
 
   // Every track's published pulse for today, not just one -- see
   // backend/app/api/routes/daily_pulse.py's list_today_pulses docstring
@@ -198,8 +208,8 @@ export const api = {
 
   getQuiz: (quizId: number) => request<QuizTake>(`/api/quizzes/${quizId}`),
 
-  submitQuizAttempt: (quizId: number, answers: AnswerValue[], question_order: number[]) =>
-    request<QuizAttemptResult>(`/api/quizzes/${quizId}/attempt`, { method: "POST", body: JSON.stringify({ answers, question_order }) }),
+  submitQuizAttempt: (quizId: number, answers: AnswerValue[], question_order: number[], version: string | null = null) =>
+    request<QuizAttemptResult>(`/api/quizzes/${quizId}/attempt`, { method: "POST", body: JSON.stringify({ answers, question_order, version }) }),
 
   getQuizAttempts: (quizId: number) => request<QuizAttemptSummary[]>(`/api/quizzes/${quizId}/attempts`),
 

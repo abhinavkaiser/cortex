@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import Link from "next/link";
+import type { LearningUnit } from "@/lib/learning";
+import { LessonPractice } from "@/components/learning/LessonPractice";
+import { LessonUpdates } from "@/components/learning/LessonUpdates";
 import { api } from "@/lib/api";
 import type { LessonBlock, LessonDetail } from "@/lib/types";
 import { segmentBlocks } from "@/lib/lessonSections";
@@ -52,6 +56,9 @@ export default function LessonPage() {
   const router = useRouter();
   const [lesson, setLesson] = useState<LessonDetail | null>(null);
   const [error, setError] = useState("");
+  const [completionError, setCompletionError] = useState("");
+  const [unit, setUnit] = useState<LearningUnit | null>(null);
+  const [view, setView] = useState<"practice" | "learn">("practice");
   const [completing, setCompleting] = useState(false);
   const [cardIndex, setCardIndex] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -93,7 +100,9 @@ export default function LessonPage() {
 
   const load = useCallback(async () => {
     try {
-      const l = await api.getLesson(Number(params.id));
+      const [l, learning] = await Promise.all([api.getLesson(Number(params.id)), api.getLearningUnit(Number(params.id))]);
+      setUnit(learning);
+      setError("");
       setLesson(l);
       setCardIndex(0);
     } catch (e) {
@@ -118,13 +127,14 @@ export default function LessonPage() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (sections.length === 0) return;
+      if (sections.length === 0 || view !== "learn" && unit) return;
+      if (e.target instanceof HTMLElement && (e.target.matches("input, textarea, select, button") || e.target.isContentEditable)) return;
       if (e.key === "ArrowRight") goTo(cardIndex + 1);
       if (e.key === "ArrowLeft") goTo(cardIndex - 1);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [sections.length, cardIndex, goTo]);
+  }, [sections.length, cardIndex, goTo, view, unit]);
 
   // Stop reading aloud whenever the card changes (nav, or the lesson swaps
   // out from under us) -- a stale utterance reading the wrong card is worse
@@ -133,7 +143,7 @@ export default function LessonPage() {
     setSpeaking(false);
     window.speechSynthesis?.cancel();
     return () => window.speechSynthesis?.cancel();
-  }, [cardIndex, lesson?.id]);
+  }, [cardIndex, lesson?.id, view]);
 
   function toggleListen() {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
@@ -163,6 +173,9 @@ export default function LessonPage() {
     try {
       await api.completeLesson(lesson.id);
       await load();
+      setCompletionError("");
+    } catch (e) {
+      setCompletionError(e instanceof Error ? e.message : "Completion could not be saved.");
     } finally {
       setCompleting(false);
     }
@@ -188,7 +201,24 @@ export default function LessonPage() {
         {lesson.completed && <span className="shrink-0 text-sm font-medium text-emerald-600">✓ Completed</span>}
       </div>
 
-      {sections.length > 0 ? (
+      <div className="mt-5 rounded-xl border border-line p-4 text-sm">
+        {unit ? <>
+          <p className="font-medium">{unit.objective}</p>
+          <p className="mt-2 text-xs text-ink-muted">Content review: {unit.reviewed_on} · Next review due: {unit.review_due} · Version {unit.version.slice(0, 8)}</p>
+          {unit.status !== "reviewed" && <p className="mt-2 text-amber-800">{unit.status === "changed_since_review" ? "This lesson changed after review. Practice is paused until it is reviewed again." : "The scheduled content review is due. Check changing claims against current primary sources."}</p>}
+          <details className="mt-2"><summary className="cursor-pointer text-brand">Prerequisites and source references</summary>
+            <p className="mt-2">{unit.prerequisites}</p>
+            <ul className="mt-2 list-disc pl-5">{unit.sources.map(source => <li key={source.url}><a href={source.url} target="_blank" rel="noreferrer" className="text-brand underline">{source.title} ↗</a></li>)}</ul>
+            <p className="mt-2 text-xs text-ink-muted">References support the concepts taught here. A review date does not guarantee every external product or regulation is unchanged.</p>
+          </details>
+        </> : <p className="text-amber-800">This lesson has not yet received a dated content review or the revised practice format. Verify changing claims against primary sources.</p>}
+      </div>
+      {unit && <div className="mt-6 flex gap-3" aria-label="Lesson view">
+        <button aria-pressed={view === "practice"} onClick={() => setView("practice")} className={`rounded-lg border px-4 py-2 text-sm ${view === "practice" ? "border-brand bg-brand text-white" : "border-line"}`}>Try and revise</button>
+        <button aria-pressed={view === "learn"} onClick={() => setView("learn")} className={`rounded-lg border px-4 py-2 text-sm ${view === "learn" ? "border-brand bg-brand text-white" : "border-line"}`}>Worked explanation</button>
+      </div>}
+      {unit && <div hidden={view !== "practice"}><LessonPractice key={`${lesson.id}-${unit.version}`} lessonId={lesson.id} unit={unit} onSaved={setUnit} onLearn={() => setView("learn")} /></div>}
+      {(!unit || view === "learn") && (sections.length > 0 ? (
         <div className="mt-8">
           <div className="mb-4 flex items-center gap-2">
             {sections.map((_, i) => (
@@ -205,7 +235,7 @@ export default function LessonPage() {
           </div>
           <div className="mb-4 flex items-center justify-between">
             <p className="text-xs font-medium text-ink-muted">
-              Card {cardIndex + 1} of {sections.length} · {Math.round(((cardIndex + 1) / sections.length) * 100)}% complete
+              Card {cardIndex + 1} of {sections.length} · reading position
             </p>
             <button
               onClick={toggleListen}
@@ -249,10 +279,10 @@ export default function LessonPage() {
               {!lesson.completed && (
                 <button
                   onClick={complete}
-                  disabled={completing}
+                  disabled={completing || Boolean(unit && (unit.best_score !== 100 || unit.status === "changed_since_review"))}
                   className="rounded-lg border border-brand px-4 py-2 text-sm font-medium text-brand hover:bg-brand/5 disabled:opacity-40"
                 >
-                  {completing ? "..." : "Mark as read"}
+                  {completing ? "Saving…" : unit ? "Complete lesson" : "Mark as read"}
                 </button>
               )}
               {cardIndex < lastCard && (
@@ -275,7 +305,12 @@ export default function LessonPage() {
           This lesson doesn&apos;t have content yet -- run{" "}
           <code className="rounded bg-surface px-1.5 py-0.5">python scripts/generate_lesson_content.py</code> on the backend.
         </p>
-      )}
+      ))}
+      {unit && view === "practice" && !lesson.completed && <button onClick={complete} disabled={completing || unit.best_score !== 100 || unit.status === "changed_since_review"} className="mt-5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-40">{completing ? "Saving…" : "Complete lesson"}</button>}
+      {unit && unit.best_score !== 100 && <p className="mt-3 text-xs text-ink-muted">Complete both practice decisions and save your explanation to finish this lesson.</p>}
+      {completionError && <p role="alert" className="mt-3 text-sm text-red-700">{completionError}</p>}
+      <div className="mt-6"><Link href="/dashboard/learn" className="text-sm font-medium text-brand underline">Return to your learning path →</Link></div>
+      <LessonUpdates key={lesson.id} lessonId={lesson.id} />
     </main>
   );
 }

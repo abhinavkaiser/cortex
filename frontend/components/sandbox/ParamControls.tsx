@@ -25,6 +25,7 @@ export function ParamControls({ params, onChange }: { params: Params; onChange: 
         </select>
       </div>
 
+      <p className="text-xs text-ink-muted">This connection supports model selection. Temperature, top-p and output-limit controls are unavailable; the disabled values below are illustrative and are not applied.</p>
       <div>
         <label className="flex justify-between text-xs font-medium uppercase tracking-wide text-ink-muted">
           <span>Temperature</span>
@@ -32,6 +33,8 @@ export function ParamControls({ params, onChange }: { params: Params; onChange: 
         </label>
         <input
           type="range"
+          disabled
+          aria-label="Illustrative value; not applied to generation"
           min={0}
           max={2}
           step={0.05}
@@ -48,6 +51,8 @@ export function ParamControls({ params, onChange }: { params: Params; onChange: 
         </label>
         <input
           type="range"
+          disabled
+          aria-label="Illustrative value; not applied to generation"
           min={0}
           max={1}
           step={0.01}
@@ -64,6 +69,8 @@ export function ParamControls({ params, onChange }: { params: Params; onChange: 
         </label>
         <input
           type="range"
+          disabled
+          aria-label="Illustrative value; not applied to generation"
           min={64}
           max={4096}
           step={64}

@@ -29,9 +29,8 @@ def get_lesson(lesson_id: int, user: User = Depends(get_current_user), db: Sessi
     completed). Fetching every lesson's full body on every progress check
     would bloat that response for no reason; this loads on demand when a
     user actually opens one lesson to read it."""
-    lesson = db.get(Lesson, lesson_id)
-    if not lesson:
-        raise HTTPException(404, "Lesson not found")
+    from app.api.routes.learning import visible_lesson
+    lesson = visible_lesson(db, lesson_id, user)
 
     completed = (
         db.query(UserLessonProgress)

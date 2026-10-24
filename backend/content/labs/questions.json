@@ -1,0 +1,12 @@
+[
+ {"split":"dev","question":"What is the current returns policy?","relevant":["returns-current"]},
+ {"split":"dev","question":"Does a damaged item need supervisor review?","relevant":["damage"]},
+ {"split":"dev","question":"What permission is needed to view an invoice?","relevant":["access"]},
+ {"split":"dev","question":"When does subscription cancellation take effect?","relevant":["cancellation"]},
+ {"split":"dev","question":"What is the CEO's personal phone number?","relevant":[]},
+ {"split":"test","question":"How long do I have to ask for my money back?","relevant":["returns-current"]},
+ {"split":"test","question":"Can I get a refund for damaged goods and shipping?","relevant":["damage","returns-current"]},
+ {"split":"test","question":"When can I visit the shop on Sunday?","relevant":["hours"]},
+ {"split":"test","question":"Where do I download invoices and who may view them?","relevant":["invoice","access"]},
+ {"split":"test","question":"What is tomorrow's temperature?","relevant":[]}
+]

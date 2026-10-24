@@ -15,6 +15,7 @@ function PulseCard({ pulse }: { pulse: DailyPulse }) {
         <div className="text-xs font-medium uppercase tracking-wide text-brand">
           {pulse.track_name ?? "Daily Pulse"} -- {pulse.pulse_date}
         </div>
+        {pulse.is_latest_from_earlier_day && <p className="mt-2 text-sm text-amber-800">Latest available for this specialization; a newer published digest is not available.</p>}
         <p className="mt-2 whitespace-pre-line leading-relaxed">{pulse.summary}</p>
         {pulse.source_urls.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-3 text-xs text-ink-muted">
@@ -52,7 +53,7 @@ export function DailyPulseCard() {
 
   if (loading) return <div className="text-sm text-ink-muted">Loading today&apos;s pulse...</div>;
   if (error) return <div className="rounded-xl border border-line p-5 text-sm text-ink-muted">{error}</div>;
-  if (!pulses || pulses.length === 0) return null;
+  if (!pulses || pulses.length === 0) return <p className="text-sm text-ink-muted">No published digest is available yet. Your learning path is still available.</p>;
 
   return (
     <div className="space-y-6">

@@ -79,7 +79,7 @@ export default function QuizTakePage() {
     setError("");
     try {
       const order = quiz.questions.map((q) => q.original_index);
-      const r = await api.submitQuizAttempt(quizId, answers, order);
+      const r = await api.submitQuizAttempt(quizId, answers, order, quiz.version);
       setResult(r);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not submit this attempt.");
@@ -212,6 +212,7 @@ export default function QuizTakePage() {
                 </div>
               )}
 
+              {questionResult?.explanation && <p className="mt-3 text-sm text-ink-muted">{questionResult.explanation}</p>}
               {result && questionResult?.correct === null && (
                 <p className="mt-2 text-xs font-medium text-amber-700">Awaiting instructor review -- not auto-graded.</p>
               )}
