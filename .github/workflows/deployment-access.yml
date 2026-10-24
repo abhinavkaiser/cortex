@@ -17,18 +17,43 @@ concurrency:
 
 jobs:
   inspect:
-    runs-on: [self-hosted, linux, x64, cortex-production]
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Verify server identity and inspect deployment configuration
+      - name: Verify server access and inspect deployment configuration
         shell: bash
+        env:
+          CORTEX_DEPLOY_SSH_KEY: ${{ secrets.CORTEX_DEPLOY_SSH_KEY || secrets.DEPLOY_SSH_KEY || secrets.SSH_PRIVATE_KEY || secrets.SSH_KEY }}
+          CORTEX_DEPLOY_KNOWN_HOSTS: ${{ secrets.CORTEX_DEPLOY_KNOWN_HOSTS }}
         run: |
+          set -euo pipefail
+          if [ -z "$CORTEX_DEPLOY_SSH_KEY" ]; then
+            echo '::error::CORTEX_DEPLOY_SSH_KEY must be configured as a repository Actions secret. The connected integration currently cannot manage repository secrets.'
+            exit 1
+          fi
+          umask 077
+          connection_dir=$(mktemp -d "$RUNNER_TEMP/cortex-ssh.XXXXXXXX")
+          trap 'rm -rf -- "$connection_dir"' EXIT
+          printf '%s\n' "$CORTEX_DEPLOY_SSH_KEY" > "$connection_dir/key"
+          unset CORTEX_DEPLOY_SSH_KEY
+          ssh-keygen -y -f "$connection_dir/key" > /dev/null
+          host_policy=accept-new
+          if [ -n "$CORTEX_DEPLOY_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$CORTEX_DEPLOY_KNOWN_HOSTS" > "$connection_dir/known_hosts"
+            host_policy=yes
+          fi
+          unset CORTEX_DEPLOY_KNOWN_HOSTS
+          ssh -F /dev/null -i "$connection_dir/key" \
+            -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 \
+            -o "StrictHostKeyChecking=$host_policy" \
+            -o "UserKnownHostsFile=$connection_dir/known_hosts" \
+            root@178.105.97.144 'bash -se' <<'REMOTE'
           set -euo pipefail
           echo "Server: $(hostname)"
           echo "Execution user: $(id -un)"
           test "$(id -u)" = 0
+          test "$(hostname)" = ubuntu-4gb-fsn1-1
           test -d /opt/cortex/backend
-          echo "Application directory: /opt/cortex"
           echo "Application revision:"
           git -c safe.directory=/opt/cortex -C /opt/cortex rev-parse HEAD
           echo "Application path ownership:"
@@ -42,10 +67,13 @@ jobs:
           python3 --version
           if command -v node >/dev/null; then node --version; fi
           if command -v npm >/dev/null; then npm --version; fi
-          echo "Application database present:"
           test -f /opt/cortex/backend/ai_academy.db
-          echo yes
+          echo "SSH host public key (for pinning future connections):"
+          if [ -f /etc/ssh/ssh_host_ed25519_key.pub ]; then
+            awk '{print "178.105.97.144 " $1 " " $2}' /etc/ssh/ssh_host_ed25519_key.pub
+          fi
           echo "Production health:"
           curl --fail --silent --show-error --max-time 20 https://cortex.xiox.in/health
           echo
           echo 'Read-only server access verified; no application files or services changed.'
+          REMOTE
