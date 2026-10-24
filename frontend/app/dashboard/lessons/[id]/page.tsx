@@ -198,7 +198,7 @@ export default function LessonPage() {
           <h1 className="text-2xl font-semibold">{lesson.title}</h1>
           <p className="mt-1 text-xs text-ink-muted">{lesson.estimated_minutes} min</p>
         </div>
-        {lesson.completed && <span className="shrink-0 text-sm font-medium text-emerald-600">✓ Completed</span>}
+        {lesson.completed && <span className="shrink-0 text-sm font-medium text-emerald-600">{unit && unit.best_score !== 100 ? "Previously read · Practice due" : "✓ Completed"}</span>}
       </div>
 
       <div className="mt-5 rounded-xl border border-line p-4 text-sm">

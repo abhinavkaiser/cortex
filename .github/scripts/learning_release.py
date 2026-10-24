@@ -76,7 +76,13 @@ def restore_content(backup, published):
                 # Before this first release, there were no learning-unit records.
                 # Keeping attempts is intentional; a redeploy can reuse their version.
                 has_units = old.execute("select 1 from sqlite_master where name='learning_units'").fetchone()
-                if not has_units:
+                previous_unit = old.execute('select * from learning_units where lesson_id=?', (lesson_id,)).fetchone() if has_units else None
+                if previous_unit:
+                    columns = [column[1] for column in old.execute('pragma table_info(learning_units)')]
+                    assignments = ','.join(column + '=?' for column in columns if column != 'id')
+                    values = [previous_unit[i] for i, column in enumerate(columns) if column != 'id']
+                    current.execute('update learning_units set ' + assignments + ' where lesson_id=?', (*values, lesson_id))
+                else:
                     current.execute('delete from learning_units where lesson_id=?', (lesson_id,))
         # Restore revised quizzes and decks without deleting any attempts.
         for quiz_id, original_json in current.execute('select quiz_id,original from learning_quiz_publications').fetchall():
@@ -84,7 +90,12 @@ def restore_content(backup, published):
             prior = old.execute('select title,passing_score,questions,randomize_questions,max_attempts from quizzes where id=?', (quiz_id,)).fetchone()
             if prior:
                 current.execute('update quizzes set title=?,passing_score=?,questions=?,randomize_questions=?,max_attempts=? where id=?', (*prior, quiz_id))
-                current.execute('delete from learning_quiz_publications where quiz_id=?', (quiz_id,))
+                had_publications = old.execute("select 1 from sqlite_master where name='learning_quiz_publications'").fetchone()
+                previous_publication = old.execute('select version,original from learning_quiz_publications where quiz_id=?', (quiz_id,)).fetchone() if had_publications else None
+                if previous_publication:
+                    current.execute('update learning_quiz_publications set version=?,original=? where quiz_id=?', (*previous_publication, quiz_id))
+                else:
+                    current.execute('delete from learning_quiz_publications where quiz_id=?', (quiz_id,))
                 module_id = current.execute('select module_id from quizzes where id=?', (quiz_id,)).fetchone()[0]
                 deck = old.execute('select title,cards from flashcard_decks where module_id=?', (module_id,)).fetchone()
                 if deck:
