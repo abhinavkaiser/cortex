@@ -158,6 +158,7 @@ export interface UserProgress {
 }
 
 export interface DailyPulse {
+  is_latest_from_earlier_day: boolean;
   id: number;
   pulse_date: string;
   track_slug: TrackSlug | null;
@@ -359,6 +360,7 @@ export interface QuizTake {
 }
 
 export interface QuestionResult {
+  explanation: string;
   type: QuestionType;
   correct: boolean | null; // null for a short_answer question -- pending instructor review
   selected: AnswerValue;

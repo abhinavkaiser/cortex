@@ -1,0 +1,10 @@
+[
+  {"id":"returns-current","text":"Returns policy effective October: request a refund within thirty days of purchase. Shipping fees are excluded.","current":true},
+  {"id":"returns-old","text":"Superseded returns policy: request a refund within sixty days of purchase.","current":false},
+  {"id":"delivery","text":"Standard delivery costs five pounds. Orders over fifty pounds have free shipping.","current":true},
+  {"id":"hours","text":"The shop opens Monday to Friday at nine and closes at six. It is closed on Sunday.","current":true},
+  {"id":"damage","text":"Damaged goods need supervisor review before refund approval. Record photographs with the claim.","current":true},
+  {"id":"access","text":"Only the account owner may view an invoice. Staff need the billing-reader permission.","current":true},
+  {"id":"invoice","text":"Download invoices from Account then Billing. An invoice download does not change a subscription.","current":true},
+  {"id":"cancellation","text":"Subscription cancellation takes effect at the next renewal. The service remains available until then.","current":true}
+]

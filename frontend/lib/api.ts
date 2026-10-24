@@ -1,3 +1,4 @@
+import type { CurriculumUpdate, LearningUnit, PathUnit, PracticeResult } from "./learning";
 import type {
   AgentResponse,
   AnswerValue,
@@ -85,6 +86,14 @@ export const api = {
     }),
 
   getLesson: (lessonId: number) => request<LessonDetail>(`/api/lessons/${lessonId}`),
+
+  getLearningPath: () => request<PathUnit[]>("/api/learning/path"),
+  getLearningUnit: (id: number) => request<LearningUnit | null>(`/api/learning/lessons/${id}`),
+  getLessonUpdates: (id: number) => request<CurriculumUpdate[]>(`/api/learning/lessons/${id}/updates`),
+  submitPractice: (id: number, version: string, answers: number[], reflection: string) =>
+    request<PracticeResult>(`/api/learning/lessons/${id}/practice`, {
+      method: "POST", body: JSON.stringify({ version, answers, reflection }),
+    }),
 
   // Every track's published pulse for today, not just one -- see
   // backend/app/api/routes/daily_pulse.py's list_today_pulses docstring

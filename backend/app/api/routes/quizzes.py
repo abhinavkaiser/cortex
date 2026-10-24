@@ -176,6 +176,8 @@ def submit_attempt(quiz_id: int, body: QuizAttemptRequest, user: User = Depends(
     # Results returned in PRESENTATION order (matching what the client just
     # displayed), not original-index order -- results_by_original[idx] for
     # idx in `order` reproduces that.
+    for idx, item in results_by_original.items():
+        item.explanation = quiz.questions[idx].get("explanation", "")
     results = [results_by_original[idx] for idx in order]
 
     return QuizAttemptResult(score=score, passed=passed, status=status, passing_score=quiz.passing_score, results=results, course_completed=course_completed)

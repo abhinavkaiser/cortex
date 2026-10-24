@@ -6,6 +6,8 @@ from app.core.db import get_db
 from app.models.course import Enrollment
 from app.models.lesson import Lesson, UserLessonProgress
 from app.models.user import User
+from app.models.learning import LearningUnit
+from app.services.learning import ready, unit_status
 from app.schemas.course import UserCourseOut
 from app.schemas.user import CompleteLessonRequest, UserProgressOut
 from app.services.course_progress import check_and_issue_certificate, course_progress_pct
@@ -26,6 +28,10 @@ def complete_lesson(body: CompleteLessonRequest, user: User = Depends(get_curren
     lesson = db.get(Lesson, body.lesson_id)
     if not lesson:
         raise HTTPException(404, "Lesson not found")
+
+    unit = db.query(LearningUnit).filter_by(lesson_id=lesson.id).first()
+    if unit and (unit_status(unit, lesson) == "changed_since_review" or not ready(db, user.id, unit)):
+        raise HTTPException(409, "Complete the current lesson practice before marking it complete")
 
     already = (
         db.query(UserLessonProgress)

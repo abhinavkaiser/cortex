@@ -212,6 +212,7 @@ export default function QuizTakePage() {
                 </div>
               )}
 
+              {questionResult?.explanation && <p className="mt-3 text-sm text-ink-muted">{questionResult.explanation}</p>}
               {result && questionResult?.correct === null && (
                 <p className="mt-2 text-xs font-medium text-amber-700">Awaiting instructor review -- not auto-graded.</p>
               )}

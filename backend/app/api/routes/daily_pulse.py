@@ -14,27 +14,18 @@ router = APIRouter(prefix="/api/daily-pulse", tags=["daily-pulse"])
 
 @router.get("/today", response_model=list[DailyPulseOut])
 def list_today_pulses(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Serves the JSON payloads the frontend's Daily Pulse page renders --
-    only ever PUBLISHED pulses (ones that cleared evals).
-
-    Used to be scoped to "the current user's track" (User.track_id). Now
-    that Tracks are no longer a learner-facing concept (a user doesn't
-    have a track -- see the User model), there's no single track left to
-    scope this to. Rather than silently picking one track's pulse (which
-    would arbitrarily hide the other two tracks' content every day),
-    this returns every track's published pulse for today -- Daily Pulse's
-    generation/framing/storage (see agents/daily_pulse_agent.py,
-    scripts/run_daily_pulse.py) is completely untouched, still one pulse
-    per Track, per day; only how this route *serves* that unchanged data
-    to a now-track-less user changed."""
-    pulses = (
-        db.query(DailyPulse)
-        .filter(DailyPulse.pulse_date == date.today(), DailyPulse.status == PulseStatus.PUBLISHED)
-        .order_by(DailyPulse.track_id)
-        .all()
-    )
-    if not pulses:
-        raise HTTPException(404, "No published pulses for today yet -- check back after the daily generation job runs.")
+    """Latest published item per track; dates and stale flags remain explicit."""
+    from sqlalchemy import func
+    latest = (db.query(DailyPulse.track_id, func.max(DailyPulse.pulse_date).label("day"))
+              .filter(DailyPulse.status == PulseStatus.PUBLISHED, DailyPulse.pulse_date <= date.today())
+              .group_by(DailyPulse.track_id).subquery())
+    candidates = (db.query(DailyPulse).join(latest, (DailyPulse.track_id == latest.c.track_id) & (DailyPulse.pulse_date == latest.c.day))
+                  .filter(DailyPulse.status == PulseStatus.PUBLISHED).order_by(DailyPulse.track_id, DailyPulse.id.desc()).all())
+    pulses, seen = [], set()
+    for pulse in candidates:
+        if pulse.track_id not in seen:
+            pulses.append(pulse)
+            seen.add(pulse.track_id)
 
     return [
         DailyPulseOut(
@@ -48,6 +39,7 @@ def list_today_pulses(user: User = Depends(get_current_user), db: Session = Depe
             quiz_choices=p.quiz_choices,
             source_urls=p.source_urls,
             created_at=p.created_at,
+            is_latest_from_earlier_day=p.pulse_date < date.today(),
         )
         for p in pulses
     ]
@@ -56,6 +48,6 @@ def list_today_pulses(user: User = Depends(get_current_user), db: Session = Depe
 @router.post("/answer", response_model=QuizAnswerResult)
 def answer_quiz(body: QuizAnswerRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     pulse = db.get(DailyPulse, body.pulse_id)
-    if not pulse:
+    if not pulse or pulse.status != PulseStatus.PUBLISHED:
         raise HTTPException(404, "Pulse not found")
     return QuizAnswerResult(correct=body.selected_index == pulse.quiz_correct_index, correct_index=pulse.quiz_correct_index)

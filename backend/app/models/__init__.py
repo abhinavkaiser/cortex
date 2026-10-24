@@ -31,3 +31,6 @@ __all__ = [
     "PromptAttempt",
     "SemanticCacheEntry",
 ]
+
+from app.models.learning import CurriculumSignal, LearningUnit, PracticeAttempt  # noqa: F401
+from app.models.learning import LearningRevision  # noqa: F401

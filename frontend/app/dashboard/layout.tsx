@@ -15,6 +15,7 @@ import type { UserRole } from "@/lib/types";
 // "Formerly Tracks, now migrated into Courses": the fixed 3-Track curriculum now lives inside
 // Courses (GET /dashboard/courses), so Courses is the sole content catalog.
 const NAV_LINKS: { href: string; label: string }[] = [
+  { href: "/dashboard/learn", label: "Learning path" },
   { href: "/dashboard/courses", label: "Courses" },
   { href: "/dashboard/daily-pulse", label: "Daily Pulse" },
   { href: "/dashboard/sandbox", label: "Sandbox" },
@@ -23,6 +24,7 @@ const NAV_LINKS: { href: string; label: string }[] = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [sharedDemo, setSharedDemo] = useState(false);
   const [role, setRole] = useState<UserRole | null>(null);
 
   useEffect(() => {
@@ -34,7 +36,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // adding a parallel /me call.
     api
       .getProgress(userId)
-      .then((p) => setRole(p.role))
+      .then((p) => { setRole(p.role); setSharedDemo(p.email === "demo@cortex.ai"); })
       .catch(() => {});
   }, []);
 
@@ -43,11 +45,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-white">
       <header className="sticky top-0 z-10 border-b border-line bg-white">
-        <nav className="mx-auto flex max-w-5xl items-center gap-6 px-6 py-3">
-          <Link href="/dashboard/courses" className="text-lg font-semibold text-ink">
+        <nav className="mx-auto flex max-w-5xl items-center gap-6 overflow-x-auto px-6 py-3">
+          <Link href="/dashboard/learn" className="shrink-0 text-lg font-semibold text-ink">
             Cortex AI
           </Link>
-          <div className="flex flex-1 items-center gap-5 text-sm">
+          <div className="flex flex-1 items-center gap-5 whitespace-nowrap text-sm">
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
@@ -69,6 +71,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 Instructor
               </Link>
             )}
+            <button className="text-xs text-ink-muted underline" onClick={() => { localStorage.removeItem("access_token"); localStorage.removeItem("user_id"); window.location.href = "/"; }}>{sharedDemo ? "Shared demo · Sign out" : "Sign out"}</button>
           </div>
         </nav>
       </header>

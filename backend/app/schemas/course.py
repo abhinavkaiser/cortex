@@ -273,6 +273,7 @@ class QuizAttemptRequest(BaseModel):
 
 
 class QuestionResult(BaseModel):
+    explanation: str = ""
     type: str
     correct: bool | None  # None for a short_answer question -- not auto-gradable, pending instructor review
     selected: AnswerValue
