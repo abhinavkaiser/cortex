@@ -1,0 +1,31 @@
+name: Cortex server access
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/deployment-access
+    paths:
+      - .github/workflows/deployment-access.yml
+      - .github/scripts/connect-hetzner-runner.py
+      - .github/scripts/deployment_inventory.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cortex-production-access
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    runs-on: [self-hosted, linux, x64, cortex-production]
+    timeout-minutes: 5
+    steps:
+      - name: Check out the trusted setup revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify root access and inspect deployment configuration
+        shell: bash
+        run: python3 .github/scripts/deployment_inventory.py
