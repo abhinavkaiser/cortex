@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
 import sqlite3
@@ -41,6 +42,7 @@ def main():
         report['lesson_content_sha256'] = hashlib.sha256(json.dumps(corpus, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()
 
     schedules = []
+    scheduled_logs = set()
     def scan_cron(text, source):
         for line in text.splitlines():
             stripped = line.strip()
@@ -50,6 +52,10 @@ def main():
             if matches:
                 fields = stripped.split()
                 schedules.append({'source': source, 'schedule': fields[0] if fields[0].startswith('@') else ' '.join(fields[:5]), 'entrypoints': matches})
+                for candidate in re.findall(r'(?<!\d)(?:>>|>)\s*([^\s;&]+)', stripped):
+                    path = Path(candidate.strip('\"\''))
+                    if path.is_absolute() and (str(path).startswith('/var/log/') or str(path).startswith(str(APP) + '/')) and path.is_file():
+                        scheduled_logs.add(path)
     root_cron = run(['crontab', '-l'])
     scan_cron(root_cron.stdout, 'root crontab')
     for path in [Path('/etc/crontab'), *Path('/etc/cron.d').glob('*')]:
@@ -77,6 +83,28 @@ def main():
         if matches or re.search('cortex|pulse|academy', timer, re.I):
             matched_timers.append({'timer': timer, 'entrypoints': matches})
     report['matching_systemd_timers'] = matched_timers
+    log_evidence = []
+    patterns = {
+        'claude_authentication': r'not logged in|please log in|oauth.*expir|authentication.*fail|invalid.*api.key',
+        'rate_or_usage_limit': r'rate.limit|usage.limit|hit your limit',
+        'no_feed_articles': r'no articles could be fetched',
+        'root_permission_rejection': r'dangerously-skip-permissions.*root|root.*dangerously-skip-permissions',
+        'missing_file_or_command': r'filenotfounderror|no such file or directory|command not found',
+    }
+    for path in sorted(scheduled_logs):
+        with path.open('rb') as log:
+            log.seek(max(0, path.stat().st_size - 65536))
+            lines = log.read().decode(errors='replace').splitlines()
+        detected = []
+        for line in reversed(lines):
+            for category, pattern in patterns.items():
+                if re.search(pattern, line, re.I):
+                    stamp = re.search(r'\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}', line)
+                    detected.append({'category': category, 'timestamp': stamp.group() if stamp else None})
+            if detected:
+                break
+        log_evidence.append({'path': str(path), 'modified_utc': datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(), 'latest_recognized_error': detected})
+    report['scheduled_log_evidence'] = log_evidence
 
     backend_environment = os.environ.copy()
     pm2_home = Path('/root/.pm2')
@@ -102,6 +130,25 @@ def main():
             report['configured_generation_model'] = configuration['claude_model']
             binary = shutil.which(configuration['claude_bin'], path=backend_environment.get('PATH'))
             report['claude_binary_available'] = bool(binary)
+            cron_users = {item['source'].removeprefix('user crontab ') for item in schedules if item['source'].startswith('user crontab ')}
+            user_auth = []
+            if binary:
+                code = '''import json,subprocess,sys,shutil
+binary=shutil.which(sys.argv[1])
+result={"binary_available":bool(binary)}
+if binary:
+ p=subprocess.run([binary,"auth","status"],capture_output=True,text=True,timeout=15)
+ try:
+  d=json.loads(p.stdout);result.update({k:d.get(k) for k in ("loggedIn","authMethod","apiProvider")})
+ except json.JSONDecodeError:result["status"]="unrecognized output"
+print(json.dumps(result))'''
+                for username in sorted(cron_users):
+                    status = run(['runuser', '-u', username, '--', '/usr/bin/python3', '-c', code, binary], cwd=str(APP), timeout=20)
+                    if status.returncode == 0:
+                        user_auth.append({'user': username, **json.loads(status.stdout)})
+                    else:
+                        user_auth.append({'user': username, 'status': 'probe unavailable', 'exit_code': status.returncode})
+            report['cron_user_claude_auth'] = user_auth
             if binary:
                 auth = run([binary, 'auth', 'status'], cwd=str(APP), env=backend_environment)
                 try:
