@@ -27,7 +27,10 @@ def run(*args, **kwargs):
 
 
 def git(*args):
-    return run('git', '-c', 'safe.directory=/opt/cortex', '-C', str(APP), *args)
+    try:
+        return run('git', '-c', 'safe.directory=/opt/cortex', '-C', str(APP), *args)
+    except RuntimeError as error:
+        raise RuntimeError('Production git ' + args[0] + ' failed') from error
 
 
 def notice(title, data):
@@ -208,7 +211,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     python, report = preflight()
     if args.deploy:
-        deploy(python, report)
+        try:
+            deploy(python, report)
+        except Exception as error:
+            notice('Learning release failure', dict(error=str(error), kind=type(error).__name__))
+            raise
     else:
         references = []
         for url in json.loads((CHECKOUT / 'backend/content/source_checks.json').read_text()):
