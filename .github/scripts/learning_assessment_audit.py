@@ -128,8 +128,14 @@ def main():
         if settings.returncode == 0:
             configuration = json.loads(settings.stdout)
             report['configured_generation_model'] = configuration['claude_model']
+            report['configured_claude_bin'] = configuration['claude_bin']
             binary = shutil.which(configuration['claude_bin'], path=backend_environment.get('PATH'))
             report['claude_binary_available'] = bool(binary)
+            if binary:
+                header = Path(binary).open('rb').read(16384)
+                if header.startswith(b'#!'):
+                    wrapper = header.decode(errors='replace')
+                    report['cli_wrapper_markers'] = {'runuser': 'runuser' in wrapper, 'sudo_user': 'sudo -u' in wrapper, 'cortexapp_reference': 'cortexapp' in wrapper}
             cron_users = {item['source'].removeprefix('user crontab ') for item in schedules if item['source'].startswith('user crontab ')}
             user_auth = []
             if binary:
