@@ -7,6 +7,8 @@ on:
       - codex/deployment-access
     paths:
       - .github/workflows/deployment-access.yml
+      - .github/scripts/connect-hetzner-runner.py
+      - .github/scripts/deployment_inventory.py
 
 permissions:
   contents: read
@@ -17,63 +19,13 @@ concurrency:
 
 jobs:
   inspect:
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, cortex-production]
     timeout-minutes: 5
     steps:
-      - name: Verify server access and inspect deployment configuration
+      - name: Check out the trusted setup revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify root access and inspect deployment configuration
         shell: bash
-        env:
-          CORTEX_DEPLOY_SSH_KEY: ${{ secrets.CORTEX_DEPLOY_SSH_KEY || secrets.DEPLOY_SSH_KEY || secrets.SSH_PRIVATE_KEY || secrets.SSH_KEY }}
-          CORTEX_DEPLOY_KNOWN_HOSTS: ${{ secrets.CORTEX_DEPLOY_KNOWN_HOSTS }}
-        run: |
-          set -euo pipefail
-          if [ -z "$CORTEX_DEPLOY_SSH_KEY" ]; then
-            echo '::error::CORTEX_DEPLOY_SSH_KEY must be configured as a repository Actions secret. The connected integration currently cannot manage repository secrets.'
-            exit 1
-          fi
-          umask 077
-          connection_dir=$(mktemp -d "$RUNNER_TEMP/cortex-ssh.XXXXXXXX")
-          trap 'rm -rf -- "$connection_dir"' EXIT
-          printf '%s\n' "$CORTEX_DEPLOY_SSH_KEY" > "$connection_dir/key"
-          unset CORTEX_DEPLOY_SSH_KEY
-          ssh-keygen -y -f "$connection_dir/key" > /dev/null
-          host_policy=accept-new
-          if [ -n "$CORTEX_DEPLOY_KNOWN_HOSTS" ]; then
-            printf '%s\n' "$CORTEX_DEPLOY_KNOWN_HOSTS" > "$connection_dir/known_hosts"
-            host_policy=yes
-          fi
-          unset CORTEX_DEPLOY_KNOWN_HOSTS
-          ssh -F /dev/null -i "$connection_dir/key" \
-            -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 \
-            -o "StrictHostKeyChecking=$host_policy" \
-            -o "UserKnownHostsFile=$connection_dir/known_hosts" \
-            root@178.105.97.144 'bash -se' <<'REMOTE'
-          set -euo pipefail
-          echo "Server: $(hostname)"
-          echo "Execution user: $(id -un)"
-          test "$(id -u)" = 0
-          test "$(hostname)" = ubuntu-4gb-fsn1-1
-          test -d /opt/cortex/backend
-          echo "Application revision:"
-          git -c safe.directory=/opt/cortex -C /opt/cortex rev-parse HEAD
-          echo "Application path ownership:"
-          stat -c '%U:%G %a %n' /opt/cortex /opt/cortex/backend /opt/cortex/frontend
-          echo "Application service metadata (no environment or command arguments):"
-          mapfile -t units < <(systemctl list-unit-files --type=service --no-legend --no-pager | awk '$1 ~ /cortex|uvicorn|nextjs|pm2|nginx/ {print $1}')
-          for unit in "${units[@]}"; do
-            systemctl show "$unit" --property=Id,User,WorkingDirectory,FragmentPath,ActiveState
-          done
-          echo "Runtime versions:"
-          python3 --version
-          if command -v node >/dev/null; then node --version; fi
-          if command -v npm >/dev/null; then npm --version; fi
-          test -f /opt/cortex/backend/ai_academy.db
-          echo "SSH host public key (for pinning future connections):"
-          if [ -f /etc/ssh/ssh_host_ed25519_key.pub ]; then
-            awk '{print "178.105.97.144 " $1 " " $2}' /etc/ssh/ssh_host_ed25519_key.pub
-          fi
-          echo "Production health:"
-          curl --fail --silent --show-error --max-time 20 https://cortex.xiox.in/health
-          echo
-          echo 'Read-only server access verified; no application files or services changed.'
-          REMOTE
+        run: python3 .github/scripts/deployment_inventory.py
