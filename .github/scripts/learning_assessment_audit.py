@@ -119,8 +119,22 @@ def main():
                         backend_environment[key] = value
                 pid = process.get('pid')
                 if pid and Path('/proc', str(pid)).exists():
-                    report['backend_process_uid'] = Path('/proc', str(pid)).stat().st_uid
-                report['backend_auth_binding_presence'] = {key: bool(backend_environment.get(key)) for key in ('CLAUDE_CONFIG_DIR', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN')}
+                    report['backend_launcher_uid'] = Path('/proc', str(pid)).stat().st_uid
+                    rows = run(['ps', '-eo', 'pid=,ppid=,uid=,comm=']).stdout.splitlines()
+                    tree = []
+                    children = {}
+                    for line in rows:
+                        fields = line.split(None, 3)
+                        if len(fields) == 4:
+                            children.setdefault(int(fields[1]), []).append((int(fields[0]), int(fields[2]), fields[3]))
+                    pending = [pid]
+                    while pending and len(tree) < 64:
+                        parent = pending.pop()
+                        for child, uid, name in children.get(parent, []):
+                            tree.append({'uid': uid, 'process_name': name})
+                            pending.append(child)
+                    report['backend_descendant_identities'] = tree
+                report['launcher_auth_binding_presence'] = {key: bool(backend_environment.get(key)) for key in ('CLAUDE_CONFIG_DIR', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN')}
     python = next((str(p) for p in (APP / '.venv/bin/python', APP / 'venv/bin/python') if p.is_file()), None)
     if python:
         settings_code = 'import json; from app.core.config import get_settings; s=get_settings(); print(json.dumps({"claude_bin":s.claude_bin,"claude_model":s.claude_model,"feeds":s.daily_pulse_rss_feeds}))'
@@ -159,9 +173,9 @@ print(json.dumps(result))'''
                 auth = run([binary, 'auth', 'status'], cwd=str(APP), env=backend_environment)
                 try:
                     status = json.loads(auth.stdout)
-                    report['claude_auth'] = {key: status.get(key) for key in ('loggedIn', 'authMethod', 'apiProvider')}
+                    report['runner_context_claude_auth'] = {key: status.get(key) for key in ('loggedIn', 'authMethod', 'apiProvider')}
                 except json.JSONDecodeError:
-                    report['claude_auth'] = {'status': 'unrecognized status output', 'exit_code': auth.returncode}
+                    report['runner_context_claude_auth'] = {'status': 'unrecognized status output', 'exit_code': auth.returncode}
             # Same client defaults and status handling as the actual RSS ingest.
             feed_code = '''import json,httpx,feedparser
 from urllib.parse import urlsplit
