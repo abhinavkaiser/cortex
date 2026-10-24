@@ -217,7 +217,7 @@ export default function LessonPage() {
         <button aria-pressed={view === "practice"} onClick={() => setView("practice")} className={`rounded-lg border px-4 py-2 text-sm ${view === "practice" ? "border-brand bg-brand text-white" : "border-line"}`}>Try and revise</button>
         <button aria-pressed={view === "learn"} onClick={() => setView("learn")} className={`rounded-lg border px-4 py-2 text-sm ${view === "learn" ? "border-brand bg-brand text-white" : "border-line"}`}>Worked explanation</button>
       </div>}
-      {unit && view === "practice" && <LessonPractice key={`${lesson.id}-${unit.version}`} lessonId={lesson.id} unit={unit} onSaved={setUnit} onLearn={() => setView("learn")} />}
+      {unit && <div hidden={view !== "practice"}><LessonPractice key={`${lesson.id}-${unit.version}`} lessonId={lesson.id} unit={unit} onSaved={setUnit} onLearn={() => setView("learn")} /></div>}
       {(!unit || view === "learn") && (sections.length > 0 ? (
         <div className="mt-8">
           <div className="mb-4 flex items-center gap-2">

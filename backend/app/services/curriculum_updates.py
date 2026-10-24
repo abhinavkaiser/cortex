@@ -13,7 +13,7 @@ import feedparser
 import httpx
 from sqlalchemy.orm import Session
 
-from app.models.learning import CurriculumSignal
+from app.models.learning import CurriculumRefresh, CurriculumSignal
 
 FEEDS = [
     ("Hugging Face blog", "https://huggingface.co/blog/feed.xml"),
@@ -39,6 +39,8 @@ def ingest(db: Session, *, now=None, feeds=FEEDS, fetch=None):
     now = now or datetime.utcnow()
     added = 0
     errors = []
+    pending = {}
+    checked_sources = []
     with httpx.Client(timeout=20, follow_redirects=True, headers={"User-Agent": "CortexLearning/1.0"}) as client:
         get = fetch or client.get
         for source, feed_url in feeds:
@@ -59,7 +61,7 @@ def ingest(db: Session, *, now=None, feeds=FEEDS, fetch=None):
                     if url.scheme != 'https' or not url.hostname or url.username or url.password:
                         continue
                     canonical = urlunsplit((url.scheme, url.netloc, url.path, url.query, ''))
-                    if len(canonical) > 2000 or db.query(CurriculumSignal.id).filter_by(url=canonical).first():
+                    if len(canonical) > 2000 or canonical in pending:
                         continue
                     title = plain(entry.get('title', ''))[:300]
                     summary = plain(entry.get('summary', ''))[:1200]
@@ -67,12 +69,23 @@ def ingest(db: Session, *, now=None, feeds=FEEDS, fetch=None):
                     slugs = [slug for slug, words in TOPICS.items() if any(re.search(r'\b' + re.escape(w) + r'\b', text) for w in words)]
                     if not title or not slugs:
                         continue
-                    db.add(CurriculumSignal(url=canonical, title=title, summary=summary, source=source,
-                                            published_at=published, fetched_at=now, lesson_slugs=slugs))
-                    db.flush()  # makes deduplication work with autoflush=False
-                    added += 1
+                    pending[canonical] = dict(url=canonical, title=title, summary=summary, source=source,
+                                              published_at=published, fetched_at=now, lesson_slugs=slugs)
+                checked_sources.append(source)
             except (httpx.HTTPError, ValueError, OverflowError) as error:
                 # Report source and error type, never raw response bodies or URLs with credentials.
                 errors.append(dict(source=source, error=type(error).__name__))
+    # Network requests finish before acquiring SQLite's write lock.
+    for url, values in pending.items():
+        if not db.query(CurriculumSignal.id).filter_by(url=url).first():
+            db.add(CurriculumSignal(**values))
+            db.flush()
+            added += 1
+    result = dict(added=added, errors=errors, checked_sources=checked_sources, checked_at=now.isoformat())
+    status = db.get(CurriculumRefresh, 1)
+    if status is None:
+        status = CurriculumRefresh(id=1)
+        db.add(status)
+    status.checked_at, status.result = now, result
     db.commit()
-    return dict(added=added, errors=errors, checked_at=now.isoformat())
+    return result

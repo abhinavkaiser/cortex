@@ -8,7 +8,7 @@ from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.models.course import Course
 from app.models.lesson import Lesson
-from app.models.learning import CurriculumSignal, LearningUnit, PracticeAttempt
+from app.models.learning import CurriculumRefresh, CurriculumSignal, LearningUnit, PracticeAttempt
 from app.models.module import Module
 from app.models.user import User
 from app.services.learning import attempt_result, best_attempt, public_unit, unit_status
@@ -103,3 +103,9 @@ def lab_pack():
                 archive.writestr("cortex-labs/" + path.name, path.read_bytes())
     return Response(buffer.getvalue(), media_type="application/zip",
                     headers={"Content-Disposition": 'attachment; filename="cortex-learning-labs.zip"'})
+
+
+@router.get("/updates/status")
+def update_status(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    status = db.get(CurriculumRefresh, 1)
+    return status.result if status else None

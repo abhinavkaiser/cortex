@@ -351,6 +351,7 @@ export interface QuizQuestionTake {
 }
 
 export interface QuizTake {
+  version: string | null;
   id: number;
   title: string;
   passing_score: number;

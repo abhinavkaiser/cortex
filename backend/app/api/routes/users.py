@@ -25,9 +25,8 @@ def complete_lesson(body: CompleteLessonRequest, user: User = Depends(get_curren
     owning course's completion bar. There's no separate "Common Core gate"
     or "track curriculum" branch anymore -- those were removed along with
     User.track_id/common_core_completed_at."""
-    lesson = db.get(Lesson, body.lesson_id)
-    if not lesson:
-        raise HTTPException(404, "Lesson not found")
+    from app.api.routes.learning import visible_lesson
+    lesson = visible_lesson(db, body.lesson_id, user)
 
     unit = db.query(LearningUnit).filter_by(lesson_id=lesson.id).first()
     if unit and (unit_status(unit, lesson) == "changed_since_review" or not ready(db, user.id, unit)):

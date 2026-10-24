@@ -14,9 +14,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.core.db import Base, SessionLocal, engine
 from app.models import *  # noqa: F403
-from app.models.learning import LearningRevision, LearningUnit
+from app.models.course import FlashcardDeck
+from app.models.learning import LearningRevision, LearningUnit, LearningQuizPublication
 from app.services.learning import content_hash
 from content.learning_path import REVIEWED_ON, REVIEW_DUE, UNITS
+from content.learning_assessments import ASSESSMENTS
 
 BASELINE = json.loads((Path(__file__).resolve().parents[1] / 'content/baseline_hashes.json').read_text())
 
@@ -30,6 +32,7 @@ def publish(db):
                         category="Technical foundations", instructor_id=foundation.instructor_id, is_published=True)
         db.add(bridge)
         db.flush()
+    bridge.is_published = True
     module = db.query(Module).filter_by(course_id=bridge.id).first()
     if module is None:
         module = Module(course_id=bridge.id, title="Build, measure and explain", objective="Prepare for the AI Developer course with reproducible experiments.", order_index=0)
@@ -77,8 +80,19 @@ def publish(db):
         lesson = db.query(Lesson).filter_by(slug=slug).one()
         edits = [item for item in correction_specs if item['slug'] == slug]
         version = 'correction-' + hashlib.sha256(json.dumps(edits, sort_keys=True).encode()).hexdigest()[:32]
-        if db.query(LearningRevision).filter_by(lesson_id=lesson.id, version=version).first():
-            continue
+        previous_correction = db.query(LearningRevision).filter_by(lesson_id=lesson.id, version=version).first()
+        if previous_correction and content_hash(lesson) != BASELINE[slug]:
+            from types import SimpleNamespace
+            snapshot = json.loads(json.dumps(previous_correction.snapshot))
+            for edit in edits:
+                snapshot['content_markdown'] = snapshot['content_markdown'].replace(edit['old'], edit['new'])
+                for block in snapshot['content_blocks']:
+                    if 'markdown' in block:
+                        block['markdown'] = block['markdown'].replace(edit['old'], edit['new'])
+            expected = SimpleNamespace(**snapshot)
+            if content_hash(lesson) == content_hash(expected):
+                continue
+            raise ValueError('Instructor changes detected after correction: ' + slug)
         if content_hash(lesson) != BASELINE[slug]:
             raise ValueError('Instructor changes detected in technical lesson: ' + slug)
         db.add(LearningRevision(lesson_id=lesson.id, version=version,
@@ -100,6 +114,41 @@ def publish(db):
                 raise ValueError('Rendered block correction text missing: ' + slug)
         lesson.content_blocks, lesson.content_markdown = blocks, markdown
         changes.append(slug)
+    assessment_baselines = json.loads((Path(__file__).resolve().parents[1] / 'content/baseline_assessments.json').read_text())
+    for spec in ASSESSMENTS:
+        course = db.query(Course).filter_by(slug=spec['course']).one()
+        chapter = db.query(Module).filter_by(course_id=course.id).order_by(Module.order_index).all()[spec['chapter']]
+        quiz = db.query(Quiz).filter_by(module_id=chapter.id).first()
+        deck = db.query(FlashcardDeck).filter_by(module_id=chapter.id).first()
+        snapshot = dict(quiz={key: getattr(quiz, key) for key in ['title', 'passing_score', 'questions', 'randomize_questions', 'max_attempts']} if quiz else None,
+                        deck=dict(title=deck.title, cards=deck.cards) if deck else None)
+        publication = db.query(LearningQuizPublication).filter_by(quiz_id=quiz.id).first() if quiz else None
+        target = hashlib.sha256(json.dumps([spec['questions'], 80], sort_keys=True).encode()).hexdigest()
+        current = hashlib.sha256(json.dumps([quiz.questions, quiz.passing_score], sort_keys=True).encode()).hexdigest() if quiz else None
+        if publication:
+            if current != publication.version:
+                raise ValueError('Instructor-edited assessment: ' + chapter.title)
+            if target == current:
+                continue
+        elif spec['course'] == 'ai-fundamentals':
+            if hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest() != assessment_baselines.get(chapter.title):
+                raise ValueError('Unreviewed assessment source: ' + chapter.title)
+        if quiz is None:
+            quiz = Quiz(module_id=chapter.id, title=spec['title'])
+            db.add(quiz)
+            db.flush()
+        if publication is None:
+            publication = LearningQuizPublication(quiz_id=quiz.id, original=snapshot)
+            db.add(publication)
+        quiz.title, quiz.questions, quiz.passing_score = spec['title'], spec['questions'], 80
+        quiz.randomize_questions, quiz.max_attempts = True, None
+        publication.version = target
+        if deck is None:
+            deck = FlashcardDeck(module_id=chapter.id, title=spec['title'])
+            db.add(deck)
+        deck.title = spec['title'] + ' — review'
+        deck.cards = [dict(front=front, back=back) for front, back in spec['cards']]
+        changes.append('assessment:' + spec['course'] + ':' + str(spec['chapter']))
     db.flush()
     return changes
 
@@ -116,4 +165,4 @@ if __name__ == '__main__':
             db.commit()
         else:
             db.rollback()
-        print(json.dumps(dict(applied=args.apply, lessons=len(changed), slugs=changed)))
+        print(json.dumps(dict(applied=args.apply, changes=len(changed), slugs=changed)))

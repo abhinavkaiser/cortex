@@ -54,3 +54,25 @@ class LearningRevision(Base):
     version: Mapped[str] = mapped_column(String(64))
     snapshot: Mapped[dict] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class CurriculumRefresh(Base):
+    __tablename__ = "curriculum_refresh"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    checked_at: Mapped[datetime] = mapped_column(DateTime)
+    result: Mapped[dict] = mapped_column(JSON)
+
+
+class LearningQuizPublication(Base):
+    __tablename__ = "learning_quiz_publications"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    quiz_id: Mapped[int] = mapped_column(ForeignKey("quizzes.id"), unique=True)
+    version: Mapped[str] = mapped_column(String(64))
+    original: Mapped[dict] = mapped_column(JSON)
+
+
+class LearningQuizAttempt(Base):
+    __tablename__ = "learning_quiz_attempts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    attempt_id: Mapped[int] = mapped_column(ForeignKey("quiz_attempts.id"), unique=True)
+    version: Mapped[str] = mapped_column(String(64))

@@ -79,7 +79,7 @@ export default function QuizTakePage() {
     setError("");
     try {
       const order = quiz.questions.map((q) => q.original_index);
-      const r = await api.submitQuizAttempt(quizId, answers, order);
+      const r = await api.submitQuizAttempt(quizId, answers, order, quiz.version);
       setResult(r);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not submit this attempt.");

@@ -26,6 +26,8 @@ from app.schemas.course import (
     QuizTakeOut,
 )
 from app.services.course_progress import check_and_issue_certificate
+from app.services import learning_quizzes
+from app.models.learning import LearningQuizAttempt
 
 router = APIRouter(prefix="/api/quizzes", tags=["quizzes"])
 # Separate prefix/resource (an attempt, not a quiz) -- kept in this same
@@ -75,10 +77,11 @@ def get_quiz(quiz_id: int, user: User = Depends(get_current_user), db: Session =
         for idx in indices
     ]
 
-    attempts_used = db.query(QuizAttempt).filter(QuizAttempt.quiz_id == quiz_id, QuizAttempt.user_id == user.id).count()
+    attempts_used = learning_quizzes.attempts(db, user.id, quiz).count()
 
     return QuizTakeOut(
         id=quiz.id,
+        version=learning_quizzes.version(db, quiz),
         title=quiz.title,
         passing_score=quiz.passing_score,
         max_attempts=quiz.max_attempts,
@@ -92,11 +95,14 @@ def submit_attempt(quiz_id: int, body: QuizAttemptRequest, user: User = Depends(
     quiz = db.get(Quiz, quiz_id)
     if not quiz:
         raise HTTPException(404, "Quiz not found")
+    current_version = learning_quizzes.version(db, quiz)
+    if current_version and body.version != current_version:
+        raise HTTPException(409, "This assessment changed. Reload the quiz before submitting.")
     if len(body.answers) != len(quiz.questions):
         raise HTTPException(400, f"Expected {len(quiz.questions)} answers, got {len(body.answers)}")
 
     if quiz.max_attempts is not None:
-        attempts_so_far = db.query(QuizAttempt).filter(QuizAttempt.quiz_id == quiz.id, QuizAttempt.user_id == user.id).count()
+        attempts_so_far = learning_quizzes.attempts(db, user.id, quiz).count()
         if attempts_so_far >= quiz.max_attempts:
             raise HTTPException(403, f"Maximum attempts ({quiz.max_attempts}) reached for this quiz.")
 
@@ -160,6 +166,10 @@ def submit_attempt(quiz_id: int, body: QuizAttemptRequest, user: User = Depends(
     # attempt wouldn't see the one just added above, since it isn't sent to
     # the DB yet.
     db.flush()
+
+    if current_version:
+        db.add(LearningQuizAttempt(attempt_id=attempt.id, version=current_version))
+        db.flush()
 
     # A passing attempt can be the thing that clears the course's
     # completion bar (every lesson done + every chapter quiz passed) --

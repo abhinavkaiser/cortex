@@ -16,6 +16,7 @@ from app.models.lesson import Lesson, UserLessonProgress
 from app.models.module import Module
 from app.models.learning import LearningUnit
 from app.services.learning import ready, unit_status
+from app.services import learning_quizzes
 
 
 def course_lesson_ids(db: Session, course_id: int) -> list[int]:
@@ -45,8 +46,8 @@ def quizzes_all_passed(db: Session, user_id: int, course_id: int) -> bool:
     quizzes = db.query(Quiz).join(Module, Quiz.module_id == Module.id).filter(Module.course_id == course_id).all()
     for quiz in quizzes:
         passed_once = (
-            db.query(QuizAttempt)
-            .filter(QuizAttempt.user_id == user_id, QuizAttempt.quiz_id == quiz.id, QuizAttempt.passed.is_(True))
+            learning_quizzes.attempts(db, user_id, quiz)
+            .filter(QuizAttempt.passed.is_(True))
             .first()
         )
         if not passed_once:

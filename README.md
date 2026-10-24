@@ -12,6 +12,32 @@ onboarding) sitting alongside the Course system. That's gone now -- see
 "Formerly Tracks, now migrated into Courses" below for what changed and
 why `Track`/`DailyPulse.track_id` still exist in the schema.
 
+## Guided learning path
+
+Start at `/dashboard/learn` after signing in or creating an account. The shared
+demo is optional and clearly labeled; personal accounts keep practice separate.
+The reviewed path contains nine rewritten foundation lessons and six technical
+bridge units, with scenario decisions, answer-specific feedback, saved revisions,
+worked Python examples and a downloadable project kit. Foundation/bridge quizzes
+and flashcards align with this content. Revised quiz versions require new passes;
+old attempts and certificates are retained.
+
+Publish the teaching pack with `python scripts/publish_learning_path.py --apply`
+from `backend/` after backing up the database. Without `--apply`, publication
+rolls back its changes. It adds tables, preserves original teaching snapshots and
+refuses to overwrite unrecognized instructor edits. Do not run the seed script
+against existing courses.
+
+A separate daily source refresh links recent announcements to relevant lessons.
+Reviewed content has source references and review dates; announcements are
+explicitly labeled as investigation prompts, not verified lesson amendments.
+Older courses remain in the catalog and are marked as not yet reviewed. Guided
+practice, self-reviewed writing and the project kit do not constitute an
+independently graded advanced qualification.
+
+See [.github/LEARNING_RELEASE.md](.github/LEARNING_RELEASE.md) for deployment,
+backup, verification and current limitations.
+
 ## Stack
 
 - **Frontend:** Next.js (App Router), React, TypeScript, Tailwind CSS
@@ -35,7 +61,7 @@ cortex-ai/
 │   │   │   └── routes/
 │   │   │       ├── auth.py            # register / login
 │   │   │       ├── users.py           # lesson completion, identity/role lookup, courses-enrolled-in
-│   │   │       ├── daily_pulse.py     # today's pulses (one per track), quiz answer check
+│   │   │       ├── daily_pulse.py     # latest published pulses with actual dates, quiz answer check
 │   │   │       ├── sandbox.py         # prompt playground execution
 │   │   │       ├── explore.py         # hand-built interactive AI concept demos
 │   │   │       ├── courses.py         # course catalog + instructor authoring (chapters/lessons/quiz) + enroll/roster
@@ -64,7 +90,7 @@ cortex-ai/
 │   └── Dockerfile
 ├── frontend/
 │   ├── app/
-│   │   ├── page.tsx                   # auto-login demo account, lands on the course catalog
+│   │   ├── page.tsx                   # sign in/register, optional shared demo, learning path
 │   │   ├── certificates/verify/[code]/page.tsx  # PUBLIC, no-auth certificate verification
 │   │   └── dashboard/
 │   │       ├── layout.tsx             # shared top nav (Courses/Daily Pulse/Sandbox/Certificates, + Instructor when role-gated)

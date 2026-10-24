@@ -183,3 +183,48 @@ def test_authored_question_baselines_and_structure():
         for q in unit['exercise']['questions']:
             assert len(set(q['choices'])) == 4
             assert len(q['feedback']) == 4
+
+
+def test_revised_quiz_requires_current_version_and_does_not_reuse_old_pass(setup):
+    from app.models.course import Quiz, QuizAttempt
+    from app.models.learning import LearningQuizPublication
+    from app.services import learning_quizzes
+    from app.services.course_progress import quizzes_all_passed
+    client, db, user, other, course, lesson, unit = setup
+    quiz = Quiz(module_id=lesson.module_id, title='Revised quiz', passing_score=80,
+                questions=[dict(type='multiple_choice', question='Which?', choices=['A', 'B'], correct_index=1, explanation='Evidence supports B.')])
+    db.add(quiz); db.flush()
+    db.add(QuizAttempt(user_id=user.id, quiz_id=quiz.id, answers=[0], score=100, passed=True, status='graded'))
+    db.add(LearningQuizPublication(quiz_id=quiz.id, version='new', original={}))
+    db.commit()
+    assert not quizzes_all_passed(db, user.id, course.id)
+    assert learning_quizzes.attempts(db, user.id, quiz).count() == 0
+    take = client.get(f'/api/quizzes/{quiz.id}').json()
+    assert take['version'] and 'correct_index' not in json.dumps(take)
+    assert client.post(f'/api/quizzes/{quiz.id}/attempt', json=dict(answers=[1])).status_code == 409
+    result = client.post(f'/api/quizzes/{quiz.id}/attempt', json=dict(answers=[1], version=take['version']))
+    assert result.status_code == 200 and result.json()['passed']
+    assert result.json()['results'][0]['explanation'] == 'Evidence supports B.'
+    assert quizzes_all_passed(db, user.id, course.id)
+    quiz.questions = [dict(type='multiple_choice', question='New case?', choices=['A', 'B'], correct_index=0)]
+    db.commit()
+    assert not quizzes_all_passed(db, user.id, course.id)
+    assert client.post(f'/api/quizzes/{quiz.id}/attempt', json=dict(answers=[1], version=take['version'])).status_code == 409
+
+
+def test_reviewed_assessment_baselines():
+    from content.learning_assessments import ASSESSMENTS
+    questions = [q for spec in ASSESSMENTS for q in spec['questions']]
+    assert len(questions) == 15
+    assert sum(max(range(4), key=lambda i: len(q['choices'][i])) == q['correct_index'] for q in questions) / len(questions) <= .5
+    assert all(q['explanation'] for q in questions)
+
+
+def test_worked_python_examples_execute(capsys):
+    import re
+    expected = ['30 3 0.1', 'False', "['refund', 'mixed', 'shipping']", '4.0 1.8 0.16']
+    code_blocks = [code for unit in UNITS for _, body in unit['sections'] for code in re.findall(r'```python\n(.*?)```', body, re.S)]
+    assert len(code_blocks) == len(expected)
+    for code, output in zip(code_blocks, expected):
+        exec(compile(code, '<course-example>', 'exec'), {})
+        assert capsys.readouterr().out.strip() == output

@@ -6,10 +6,12 @@ import type { PathUnit } from "@/lib/learning";
 
 export default function LearningPathPage() {
   const [units, setUnits] = useState<PathUnit[]>([]);
+  const [refresh, setRefresh] = useState<{ checked_at: string; checked_sources: string[]; errors: { source: string }[] } | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   useEffect(() => { api.getLearningPath().then(setUnits).catch(e => setError(e.message)).finally(() => setLoading(false)); }, []);
-  const next = units.find(unit => unit.practice_score !== 100);
+  useEffect(() => { api.getCurriculumStatus().then(setRefresh).catch(() => {}); }, []);
+  const next = units.find(unit => unit.practice_score !== 100 || unit.status === "changed_since_review");
   const completed = units.filter(unit => unit.practice_score === 100).length;
   return <main className="mx-auto max-w-3xl px-6 py-12">
     <p className="text-xs font-semibold uppercase tracking-wide text-brand">Your learning path</p>
@@ -31,6 +33,11 @@ export default function LearningPathPage() {
           <p className="mt-2 text-xs">{unit.minutes} min · {unit.practice_score === null ? "Not attempted" : unit.practice_score === 100 ? "Decision practice complete" : `Best decision score: ${unit.practice_score}%`} {unit.status !== "reviewed" && " · Content needs review"}</p>
         </li>)}</ol>
       </section>)}
+      <aside className="mt-8 rounded-xl border border-line p-5 text-sm">
+        <h2 className="font-semibold">Keeping up with developments</h2>
+        <p className="mt-2">Recent source announcements appear beside relevant lessons with a question to investigate. They do not silently replace the reviewed teaching material.</p>
+        {refresh ? <><p className="mt-2 text-xs text-ink-muted">Last source check: {new Date(refresh.checked_at + "Z").toLocaleString()} · {refresh.checked_sources.length} feeds reached.</p>{refresh.errors.length > 0 && <p className="mt-2 text-amber-800">Some sources could not be checked: {refresh.errors.map(item => item.source).join(", ")}.</p>}</> : <p className="mt-2 text-xs text-ink-muted">No successful source-check status is available yet.</p>}
+      </aside>
       <section className="mt-10 rounded-xl border border-line p-6">
         <h2 className="text-xl font-semibold">Your project kit</h2>
         <p className="mt-2 text-sm">Synthetic documents, labeled questions, Python baselines and tests for retrieval, classification and safe tool execution. Runs without paid APIs. Includes setup, expected behavior and a project brief.</p>

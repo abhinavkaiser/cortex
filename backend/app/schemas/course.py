@@ -259,6 +259,7 @@ class QuizQuestionTakeOut(BaseModel):
 
 
 class QuizTakeOut(BaseModel):
+    version: str | None = None
     id: int
     title: str
     passing_score: int
@@ -268,6 +269,7 @@ class QuizTakeOut(BaseModel):
 
 
 class QuizAttemptRequest(BaseModel):
+    version: str | None = None
     answers: list[AnswerValue]  # one per question, in the order the questions were presented
     question_order: list[int] | None = None  # original_index per answer, from QuizQuestionTakeOut -- required when the quiz was fetched randomized
 
