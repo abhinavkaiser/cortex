@@ -11,7 +11,10 @@ from app.models.lesson import Lesson
 from app.models.learning import CurriculumRefresh, CurriculumSignal, LearningUnit, PracticeAttempt
 from app.models.module import Module
 from app.models.user import User
-from app.services.learning import attempt_result, best_attempt, public_unit, unit_status
+from app.services.learning import attempt_result, best_attempt, public_unit, unit_status, ready
+from app.services.education_curriculum import effective_unit
+from app.services.education_queue import enqueue
+from app.services.education_grading import practice_payload
 
 router = APIRouter(prefix="/api/learning", tags=["learning"])
 
@@ -41,11 +44,13 @@ def path(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
         lesson = db.get(Lesson, unit.lesson_id)
         if not lesson or not lesson.module or not lesson.module.course.is_published:
             continue
-        attempt = best_attempt(db, user.id, unit)
+        current = effective_unit(db, unit)
+        attempt = best_attempt(db, user.id, current)
         result.append({"lesson_id": lesson.id, "title": lesson.title, "stage": unit.stage,
                        "objective": unit.objective, "minutes": lesson.estimated_minutes,
                        "course_slug": lesson.module.course.slug,
                        "status": unit_status(unit, lesson),
+                       "assessed": ready(db, user.id, unit),
                        "practice_score": attempt.score if attempt else None})
     return result
 
@@ -63,6 +68,7 @@ def submit(lesson_id: int, body: PracticeSubmission, user: User = Depends(get_cu
     unit = db.query(LearningUnit).filter_by(lesson_id=lesson_id).first()
     if not unit:
         raise HTTPException(404, "No practice published for this lesson")
+    unit = effective_unit(db, unit)
     if body.version != unit.version or unit_status(unit, lesson) == "changed_since_review":
         raise HTTPException(409, "This lesson changed. Reload it before submitting practice.")
     questions = unit.exercise["questions"]
@@ -70,13 +76,19 @@ def submit(lesson_id: int, body: PracticeSubmission, user: User = Depends(get_cu
         raise HTTPException(422, "Select one valid answer for each task")
     if len(body.reflection.strip()) < 40:
         raise HTTPException(422, "Explain your decision in at least 40 characters")
+    from app.models.education import EducationJob
+    if db.query(EducationJob).filter(EducationJob.user_id == user.id, EducationJob.status.in_(['queued', 'running'])).count() >= 5:
+        raise HTTPException(429, 'Five assessments are pending. Wait for feedback before submitting more work.')
     score = round(100 * sum(a == q["correct_index"] for a, q in zip(body.answers, questions)) / len(questions))
     attempt = PracticeAttempt(user_id=user.id, lesson_id=lesson_id, version=unit.version,
                               answers=body.answers, reflection=body.reflection.strip(), score=score)
     db.add(attempt)
+    db.flush()
+    enqueue(db,key=f'practice:{attempt.id}',kind='practice',user_id=user.id,subject_id=attempt.id,version=unit.version,
+            payload=practice_payload(attempt,lesson,unit.exercise))
     db.commit()
     db.refresh(attempt)
-    return attempt_result(attempt, unit)
+    return attempt_result(attempt, unit, db)
 
 
 @router.get("/lessons/{lesson_id}/updates")

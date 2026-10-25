@@ -1,11 +1,16 @@
 name: Learning curriculum release
 
 on:
-  push:
-    branches: [codex/interactive-learning]
-    paths: [.github/workflows/learning-release.yml, .github/scripts/learning_release.py, backend/content/source_checks.json]
   workflow_dispatch:
     inputs:
+      diagnose_codex:
+        description: Inspect constrained Codex calls with a fixed non-student prompt
+        type: boolean
+        default: false
+      prepare_codex:
+        description: Install the app-only Codex subscription runtime and inspect sign-in
+        type: boolean
+        default: false
       deploy:
         description: Deploy the reviewed learning release
         type: boolean
@@ -21,15 +26,24 @@ concurrency:
 jobs:
   release:
     runs-on: [self-hosted, linux, x64, cortex-production]
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Diagnose Codex runtime
+        if: ${{ inputs.diagnose_codex }}
+        run: python3 .github/scripts/learning_release.py --diagnose
+      - name: Prepare Codex subscription runtime
+        if: ${{ inputs.prepare_codex }}
+        run: python3 .github/scripts/setup_codex_runtime.py
       - name: Inspect production and content references
-        if: ${{ !inputs.deploy }}
+        if: ${{ !inputs.deploy && !inputs.prepare_codex && !inputs.diagnose_codex }}
         run: python3 .github/scripts/learning_release.py
+      - name: Calibrate constrained education models
+        if: ${{ !inputs.deploy && !inputs.prepare_codex && !inputs.diagnose_codex && github.ref == 'refs/heads/codex/complete-learning' }}
+        run: python3 .github/scripts/learning_release.py --calibrate
       - name: Deploy reviewed release
-        if: ${{ inputs.deploy && github.ref == 'refs/heads/main' }}
+        if: ${{ inputs.deploy && !inputs.prepare_codex && !inputs.diagnose_codex && github.ref == 'refs/heads/main' }}
         run: python3 .github/scripts/learning_release.py --deploy

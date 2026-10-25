@@ -28,15 +28,21 @@ rolls back its changes. It adds tables, preserves original teaching snapshots an
 refuses to overwrite unrecognized instructor edits. Do not run the seed script
 against existing courses.
 
-A separate daily source refresh links recent announcements to relevant lessons.
-Reviewed content has source references and review dates; announcements are
-explicitly labeled as investigation prompts, not verified lesson amendments.
-Older courses remain in the catalog and are marked as not yet reviewed. Guided
-practice, self-reviewed writing and the project kit do not constitute an
-independently graded advanced qualification.
+The advanced release adds six ML/research lessons and six specialization projects
+with three assessed milestones each. Durable two-model rubric feedback checks quoted
+evidence and objective benchmarks; learners can revise, save drafts and appeal.
+Baseline, transfer and seven-day checks separate completion from retained skill.
+The prompt project runs actual comparisons instead of trusting claimed success counts.
 
-See [.github/LEARNING_RELEASE.md](.github/LEARNING_RELEASE.md) for deployment,
-backup, verification and current limitations.
+Daily source checks can produce versioned teaching additions after source quotation
+checks and a separate model review. Updated practice requirements invalidate stale
+credit. Unsupported updates stay unpublished, and instructors can withdraw additions.
+Older catalog lessons still identify their review status.
+
+See [.github/EDUCATION_RELEASE.md](.github/EDUCATION_RELEASE.md) for calibration,
+publication, backup, deployment and limitations. The server uses its own ChatGPT subscription login; live grading calibration
+has passed the supported, empty, injection and incorrect-calculation controls.
+See [the learning pilot protocol](docs/learning-pilot.md) for real outcome validation.
 
 ## Stack
 
@@ -44,10 +50,10 @@ backup, verification and current limitations.
 - **Backend:** Python, FastAPI
 - **Database:** SQLite via SQLAlchemy (swapped in for the originally-specced
   Postgres -- see "Scoping notes" below for what that trades away)
-- **AI:** Runs on a local **Claude subscription** via the `claude` CLI
-  (`claude --print`) -- flat-rate, no billed API key to configure. Used for
-  generation and evaluation (LLM-as-judge). Embeddings (semantic cache) run
-  locally too, via `sentence-transformers` -- no API for those either.
+- **AI:** Codex CLI authenticated with the app account's ChatGPT subscription,
+  using an app-only installation. No API key is required. Subscription allowances
+  still apply. Generation runs with shell, browsing, MCP and agent tools disabled,
+  in a read-only sandbox and an empty working directory. Embeddings remain local.
 
 ## Directory structure
 

@@ -6,6 +6,8 @@ import ReactMarkdown from "react-markdown";
 import Link from "next/link";
 import type { LearningUnit } from "@/lib/learning";
 import { LessonPractice } from "@/components/learning/LessonPractice";
+import { LessonActivity } from "@/components/learning/LessonActivity";
+import { PublishedAmendments } from "@/components/learning/PublishedAmendments";
 import { LessonUpdates } from "@/components/learning/LessonUpdates";
 import { api } from "@/lib/api";
 import type { LessonBlock, LessonDetail } from "@/lib/types";
@@ -102,6 +104,7 @@ export default function LessonPage() {
     try {
       const [l, learning] = await Promise.all([api.getLesson(Number(params.id)), api.getLearningUnit(Number(params.id))]);
       setUnit(learning);
+      if (learning) setView(learning.presentation === "explanation_first" ? "learn" : "practice");
       setError("");
       setLesson(l);
       setCardIndex(0);
@@ -198,7 +201,7 @@ export default function LessonPage() {
           <h1 className="text-2xl font-semibold">{lesson.title}</h1>
           <p className="mt-1 text-xs text-ink-muted">{lesson.estimated_minutes} min</p>
         </div>
-        {lesson.completed && <span className="shrink-0 text-sm font-medium text-emerald-600">{unit && unit.best_score !== 100 ? "Previously read · Practice due" : "✓ Completed"}</span>}
+        {lesson.completed && <span className="shrink-0 text-sm font-medium text-emerald-600">{unit && !unit.mastered ? "Previously read · Practice due" : "✓ Completed"}</span>}
       </div>
 
       <div className="mt-5 rounded-xl border border-line p-4 text-sm">
@@ -279,7 +282,7 @@ export default function LessonPage() {
               {!lesson.completed && (
                 <button
                   onClick={complete}
-                  disabled={completing || Boolean(unit && (unit.best_score !== 100 || unit.status === "changed_since_review"))}
+                  disabled={completing || Boolean(unit && (!unit.mastered || unit.status === "changed_since_review"))}
                   className="rounded-lg border border-brand px-4 py-2 text-sm font-medium text-brand hover:bg-brand/5 disabled:opacity-40"
                 >
                   {completing ? "Saving…" : unit ? "Complete lesson" : "Mark as read"}
@@ -306,10 +309,12 @@ export default function LessonPage() {
           <code className="rounded bg-surface px-1.5 py-0.5">python scripts/generate_lesson_content.py</code> on the backend.
         </p>
       ))}
-      {unit && view === "practice" && !lesson.completed && <button onClick={complete} disabled={completing || unit.best_score !== 100 || unit.status === "changed_since_review"} className="mt-5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-40">{completing ? "Saving…" : "Complete lesson"}</button>}
-      {unit && unit.best_score !== 100 && <p className="mt-3 text-xs text-ink-muted">Complete both practice decisions and save your explanation to finish this lesson.</p>}
+      {unit && view === "practice" && !lesson.completed && <button onClick={complete} disabled={completing || !unit.mastered || unit.status === "changed_since_review"} className="mt-5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-40">{completing ? "Saving…" : "Complete lesson"}</button>}
+      {unit && !unit.mastered && <p className="mt-3 text-xs text-ink-muted">Answer the practice decisions correctly and meet the reasoning rubric to finish this lesson.</p>}
       {completionError && <p role="alert" className="mt-3 text-sm text-red-700">{completionError}</p>}
       <div className="mt-6"><Link href="/dashboard/learn" className="text-sm font-medium text-brand underline">Return to your learning path →</Link></div>
+      <LessonActivity key={`activity-${lesson.id}`} lessonId={lesson.id} />
+      <PublishedAmendments key={`updates-${lesson.id}`} lessonId={lesson.id} managedPractice={Boolean(unit)} />
       <LessonUpdates key={lesson.id} lessonId={lesson.id} />
     </main>
   );

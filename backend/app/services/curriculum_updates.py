@@ -28,6 +28,12 @@ TOPICS = {
     "bridge-optimization-and-neural-networks": ["training", "optimization", "fine-tuning", "neural"],
     "bridge-evaluation-and-experiments": ["evaluation", "benchmark", "reliability", "eval"],
     "bridge-http-json-and-validation": ["tool", "agent", "structured", "api"],
+    "advanced-training-protocol": ["training", "optimization", "gradient", "classifier"],
+    "advanced-generalization": ["generalization", "leakage", "robustness", "distribution shift"],
+    "advanced-experimental-design": ["evaluation", "benchmark", "ablation", "reproducibility"],
+    "advanced-representation-and-adaptation": ["adapter", "lora", "embedding", "fine-tuning"],
+    "advanced-multimodal-evaluation": ["multimodal", "vision", "image", "audio", "video"],
+    "advanced-paper-reproduction": ["research", "paper", "reproduction", "benchmark"],
 }
 
 
@@ -66,7 +72,7 @@ def ingest(db: Session, *, now=None, feeds=FEEDS, fetch=None):
                     title = plain(entry.get('title', ''))[:300]
                     summary = plain(entry.get('summary', ''))[:1200]
                     text = (title + ' ' + summary).lower()
-                    slugs = [slug for slug, words in TOPICS.items() if any(re.search(r'\b' + re.escape(w) + r'\b', text) for w in words)]
+                    slugs = [slug for slug, words in TOPICS.items() if any(re.search(r'\b' + re.escape(w) + r'(?:s)?\b', text) for w in words)]
                     if not title or not slugs:
                         continue
                     pending[canonical] = dict(url=canonical, title=title, summary=summary, source=source,

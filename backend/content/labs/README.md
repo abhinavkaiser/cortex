@@ -22,3 +22,12 @@ This is not a hidden examination or evidence of production readiness.
 Extension: compare an embedding model on the same data. Follow its own input
 conventions, document dependencies and measure any cost/latency change. Do not
 claim a semantic retriever wins until you have measured it.
+
+## Advanced reproduction project
+
+Run `python3 advanced_training.py --epochs 100 --rate .1 --regularization .01`.
+Preserve the JSON output, dataset hash, normalization and split information.
+Compare one changed setting using validation. Do not select a winner from test
+results. Report confusion counts, a null/failure result and the limits of a tiny
+synthetic dataset. The online project executes your bounded configuration and
+reviews your report/code; it does not execute uploaded arbitrary Python.

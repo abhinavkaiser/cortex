@@ -9,11 +9,13 @@ class Settings(BaseSettings):
     # goes through SQLAlchemy, not raw SQLite-specific SQL.
     database_url: str = "sqlite:///./ai_academy.db"
 
-    # Runs on the local Claude subscription via the `claude` CLI -- see
-    # services/claude_client.py -- not a billed API key. `claude_bin` only
-    # needs overriding if the CLI isn't on PATH under that exact name.
+    # App-owned ChatGPT subscription session. No API key or Claude dependency.
+    codex_bin: str = "/opt/cortex-codex/node_modules/.bin/codex"
+    codex_model: str = "gpt-6.1-sol"
+    codex_fast_model: str = "gpt-6-luna"
+    # Retained to tolerate the existing production .env during migration.
     claude_bin: str = "claude"
-    claude_model: str = "claude-sonnet-4-6"
+    claude_model: str = "sonnet"
 
     # Local embeddings (sentence-transformers), no API key either -- see
     # claude_client.py's embed().

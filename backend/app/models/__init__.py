@@ -36,3 +36,10 @@ from app.models.learning import CurriculumSignal, LearningUnit, PracticeAttempt 
 from app.models.learning import LearningRevision  # noqa: F401
 from app.models.learning import CurriculumRefresh  # noqa: F401
 from app.models.learning import LearningQuizAttempt, LearningQuizPublication  # noqa: F401
+from app.models.education import (AssessmentAppeal, EducationJob, EducationWorker, EvidenceAttempt,
+                                  LearningEvent, LessonAmendment, ProjectSubmission)  # noqa: F401
+from app.models.education import GraderCalibration  # noqa: F401
+from app.models.education import LearningStudyAssignment  # noqa: F401
+from app.models.education import AmendmentAttempt  # noqa: F401
+from app.models.education import ProjectExperiment  # noqa: F401
+from app.models.education import ProjectDraft  # noqa: F401

@@ -1,0 +1,18 @@
+name: Prepare Codex subscription runtime
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cortex-production-release
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: [self-hosted, linux, x64, cortex-production]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Prepare app-only subscription runtime
+        run: python3 .github/scripts/setup_codex_runtime.py

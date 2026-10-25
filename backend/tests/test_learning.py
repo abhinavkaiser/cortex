@@ -78,7 +78,16 @@ def test_revision_persists_and_is_private(setup):
     client, db, user, other, course, lesson, unit = setup
     client.post(f'/api/learning/lessons/{lesson.id}/practice', json=submission(unit, wrong=True))
     result = client.post(f'/api/learning/lessons/{lesson.id}/practice', json=submission(unit)).json()
-    assert result['score'] == 100 and result['practice_complete']
+    assert result['score'] == 100 and not result['practice_complete']
+    assert result['assessment']['status'] == 'queued'
+    assert client.post('/api/users/lessons/complete', json={'lesson_id': lesson.id}).status_code == 409
+    from app.services.education_worker import run_one
+    factory = sessionmaker(bind=db.get_bind())
+    def assessed(payload):
+        return dict(status='graded',passed=all(payload['benchmark']['checks'].values()),score=100)
+    run_one(factory,assessor=assessed,require_calibration=False)
+    run_one(factory,assessor=assessed,require_calibration=False)
+    db.expire_all()
     detail = client.get(f'/api/learning/lessons/{lesson.id}').json()
     assert detail['best_score'] == 100 and detail['latest_attempt']['reflection']
     assert db.query(PracticeAttempt).count() == 2
