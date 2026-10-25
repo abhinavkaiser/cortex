@@ -5,7 +5,7 @@ interface Params {
   max_output_tokens: number;
 }
 
-const MODELS = ["gpt-5.4-mini", "gpt-5.4"];
+const MODELS = ["gpt-6-luna", "gpt-6.1-sol"];
 
 export function ParamControls({ params, onChange }: { params: Params; onChange: (p: Params) => void }) {
   return (

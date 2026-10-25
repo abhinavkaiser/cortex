@@ -11,8 +11,8 @@ class Settings(BaseSettings):
 
     # App-owned ChatGPT subscription session. No API key or Claude dependency.
     codex_bin: str = "/opt/cortex-codex/node_modules/.bin/codex"
-    codex_model: str = "gpt-5.4"
-    codex_fast_model: str = "gpt-5.4-mini"
+    codex_model: str = "gpt-6.1-sol"
+    codex_fast_model: str = "gpt-6-luna"
     # Retained to tolerate the existing production .env during migration.
     claude_bin: str = "claude"
     claude_model: str = "sonnet"

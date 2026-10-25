@@ -49,7 +49,7 @@ def _spawn_claude(prompt: str, model: str | None, system_prompt: str = DEFAULT_S
     # as a public API exception. Calibration receives a bounded diagnostic category.
     if result.returncode != 0:
         detail = (result.stderr + " " + result.stdout).lower()
-        kind = "authentication expired or login required" if any(word in detail for word in ["401", "unauthorized", "not logged in", "refresh token", "authentication"]) else "capacity limit" if any(word in detail for word in ["usage limit", "rate limit", "429"]) else "model unavailable" if "model" in detail and any(word in detail for word in ["not supported", "not found", "not available"]) else "provider unavailable"
+        kind = "authentication expired or login required" if any(word in detail for word in ["401", "unauthorized", "not logged in", "refresh token", "authentication"]) else "capacity limit" if any(word in detail for word in ["usage limit", "rate limit", "429"]) else "model unavailable" if "model" in detail and any(word in detail for word in ["not supported", "not found", "not available", "model_not_found"]) else "provider unavailable"
         raise RuntimeError("Codex subscription: " + kind)
     messages=[]
     for line in result.stdout.splitlines():

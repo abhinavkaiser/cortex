@@ -315,7 +315,7 @@ def test_model_adapter_disables_tools_and_records_requested_model(monkeypatch):
         return SimpleNamespace(returncode=0,stdout=json.dumps(event),stderr='')
     monkeypatch.setattr(claude_client.subprocess,'run',process)
     result=claude_client._spawn_claude('Evidence only','sonnet',structured_envelope=True)
-    assert result['model_ids']==['gpt-5.4'] and json.loads(result['text'])['value']==1
+    assert result['model_ids']==['gpt-6.1-sol'] and json.loads(result['text'])['value']==1
     assert claude_client._schema_example(dict(properties=dict(check=dict(type='boolean'))))['check'] is False
 
 
