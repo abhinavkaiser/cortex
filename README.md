@@ -44,6 +44,26 @@ publication, backup, deployment and limitations. The server uses its own ChatGPT
 has passed the supported, empty, injection and incorrect-calculation controls.
 See [the learning pilot protocol](docs/learning-pilot.md) for real outcome validation.
 
+## Embeddings and LLM fine-tuning
+
+The dedicated course at `/dashboard/courses/embeddings-and-llm-fine-tuning`
+contains 14 authored lessons in seven chapters. It covers embedding geometry,
+ingestion/chunking, ANN and hybrid search, embedding-model adaptation, training
+strategy, instruction data, chat templates/loss masking, SFT, LoRA, QLoRA, paired
+evaluation, DPO, distillation and dependency-aware deployment/rollback.
+
+Each lesson has a worked case, two decision checks with answer-specific feedback,
+a written exercise assessed by the existing grading service, and primary technical
+references. The course teaches calculations, implementation choices and experiment
+plans; no GPU lab or executed fine-tuning result is claimed. It is also part of the
+guided path, bringing the authored unit count to 35. Source topics link these new
+lessons to the existing reviewed-update pipeline.
+
+Publish with `python scripts/publish_embeddings_path.py --apply` from `backend/`
+after a consistent backup. Without `--apply`, changes roll back. The publisher
+preserves attempts, snapshots revised teaching and refuses unknown instructor edits.
+The production release workflow validates and publishes this pack automatically.
+
 ## Stack
 
 - **Frontend:** Next.js (App Router), React, TypeScript, Tailwind CSS
