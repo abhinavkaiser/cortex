@@ -39,6 +39,7 @@ def unit_status(unit, lesson):
 
 def public_unit(unit, lesson, db, user_id):
     from app.services.education_curriculum import effective_unit
+    from app.services.education_outcomes import presentation
     unit = effective_unit(db, unit)
     attempt = best_attempt(db, user_id, unit)
     latest = (db.query(PracticeAttempt).filter_by(user_id=user_id, lesson_id=lesson.id, version=unit.version)
@@ -46,6 +47,7 @@ def public_unit(unit, lesson, db, user_id):
     # Do not send answer keys or reference solutions before a submission.
     exercise = unit.exercise
     return {
+        "presentation": presentation(user_id),
         "version": unit.version, "objective": unit.objective, "prerequisites": unit.prerequisites,
         "sources": unit.sources, "reviewed_on": unit.reviewed_on, "review_due": unit.review_due,
         "status": unit_status(unit, lesson), "stage": unit.stage,

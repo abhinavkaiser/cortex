@@ -72,6 +72,7 @@ class LearningEvent(Base):
     lesson_id: Mapped[int] = mapped_column(ForeignKey('lessons.id'), index=True)
     day: Mapped[str] = mapped_column(String(10))
     active_seconds: Mapped[int] = mapped_column(default=0)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     __table_args__ = (UniqueConstraint('user_id','lesson_id','day', name='uq_active_day'),)
 
 
@@ -100,3 +101,23 @@ class GraderCalibration(Base):
     checked_at: Mapped[datetime] = mapped_column(DateTime)
     passed: Mapped[bool] = mapped_column(Boolean)
     results: Mapped[list] = mapped_column(JSON)
+
+
+class LearningStudyAssignment(Base):
+    __tablename__ = 'learning_study_assignments'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), unique=True)
+    arm: Mapped[str] = mapped_column(String(40))
+    consent: Mapped[bool] = mapped_column(Boolean, default=False)
+    protocol: Mapped[str] = mapped_column(String(80), default='lesson-order-pilot-v1')
+    consented_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class AmendmentAttempt(Base):
+    __tablename__ = 'amendment_attempts'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), index=True)
+    amendment_id: Mapped[int] = mapped_column(ForeignKey('lesson_amendments.id'), index=True)
+    selected: Mapped[int]
+    correct: Mapped[bool] = mapped_column(Boolean)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

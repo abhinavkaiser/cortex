@@ -84,6 +84,11 @@ def check_and_issue_certificate(db: Session, user_id: int, course_id: int) -> Ce
     if any(not ready(db, user_id, u) or unit_status(u, db.get(Lesson, u.lesson_id)) == "changed_since_review" for u in units):
         return None
 
+    from app.services.education_outcomes import course_project_passed
+    course = db.get(Course, course_id)
+    if course and not course_project_passed(db, user_id, course.slug):
+        return None
+
     if course_progress_pct(db, user_id, course_id) < 100 or not quizzes_all_passed(db, user_id, course_id):
         return None
 

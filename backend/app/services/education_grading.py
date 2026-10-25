@@ -3,7 +3,7 @@ import json
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from app.services import claude_client
 
-MODELS = ('claude-haiku-4-5-20251001', 'claude-sonnet-4-6')
+MODELS = ('haiku', 'sonnet')
 GRADING_PROTOCOL = 'rubric-evidence-v1'
 
 
