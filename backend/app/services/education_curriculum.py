@@ -110,7 +110,7 @@ Return only JSON with exactly: title, markdown (roughly 250-500 words), evidence
     approved=all(value is True for key,value in review.model_dump().items() if key!='reason')
     return dict(approved=approved,amendment=amendment.model_dump(),review=review.model_dump(),
                 source_sha256=hashlib.sha256(source.encode()).hexdigest(),source_excerpt=source,source_url=payload['url'],models=list(MODELS),
-                resolved_model_ids=sorted(set(getattr(raw,'model_ids',[])+getattr(judge_raw,'model_ids',[]))))
+                requested_model_ids=sorted(set(getattr(raw,'model_ids',[])+getattr(judge_raw,'model_ids',[]))))
 
 
 def amendments(db, lesson_id):

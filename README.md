@@ -41,7 +41,7 @@ Older catalog lessons still identify their review status.
 
 See [.github/EDUCATION_RELEASE.md](.github/EDUCATION_RELEASE.md) for calibration,
 publication, backup, deployment and limitations. The advanced release is prepared;
-production grading verification requires restoring the server's Claude login.
+production grading verification requires the server's ChatGPT subscription sign-in.
 See [the learning pilot protocol](docs/learning-pilot.md) for real outcome validation.
 
 ## Stack
@@ -50,10 +50,10 @@ See [the learning pilot protocol](docs/learning-pilot.md) for real outcome valid
 - **Backend:** Python, FastAPI
 - **Database:** SQLite via SQLAlchemy (swapped in for the originally-specced
   Postgres -- see "Scoping notes" below for what that trades away)
-- **AI:** Runs on a local **Claude subscription** via the `claude` CLI
-  (`claude --print`) -- flat-rate, no billed API key to configure. Used for
-  generation and evaluation (LLM-as-judge). Embeddings (semantic cache) run
-  locally too, via `sentence-transformers` -- no API for those either.
+- **AI:** Codex CLI authenticated with the app account's ChatGPT subscription,
+  using an app-only installation. No API key is required. Subscription allowances
+  still apply. Generation runs with shell, browsing, MCP and agent tools disabled,
+  in a read-only sandbox and an empty working directory. Embeddings remain local.
 
 ## Directory structure
 

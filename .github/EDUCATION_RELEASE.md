@@ -12,13 +12,21 @@ work; objective benchmark failures cannot be overridden into passes.
 The existing production runner deploys through **Learning curriculum release**.
 First run the workflow on `codex/complete-learning` with `deploy=false`. Calibration
 must correctly distinguish supported work, empty work, prompt injection and incorrect
-calculations using both constrained models. It records resolved model versions.
+calculations using both constrained models. It records requested model identifiers; Codex exec does not guarantee a resolved release identifier.
 A failed calibration leaves grading paused and prevents the production switch.
 
-On 2026-10-25 the production Claude access token was expired (401), and its existing
-refresh token was rejected (`invalid_grant`). Account sign-in is required as
-`cortexapp`; GitHub access and the deployment runner already work. No password or
+The runtime now uses **Codex CLI with a ChatGPT subscription**, replacing the
+expired Claude account. API access is not required. Prepare the pinned app-only CLI
+using the release workflow `prepare_codex=true`, then complete subscription sign-in:
+
+```bash
+sudo -iu cortexapp /opt/cortex-codex/node_modules/.bin/codex login --device-auth
+```
+
+GitHub access and the deployment runner already work. The server account needs its
+own sign-in; maintenance-environment credentials are never copied. No password or
 private token belongs in this repository. Once signed in, rerun preflight/calibration.
+Release runs are manual; pushing development changes no longer triggers calibration.
 Do not substitute test fixtures for this gate.
 
 After review/merge, dispatch the workflow on `main` with `deploy=true`. Deployment:
@@ -51,18 +59,18 @@ experiments run through the constrained model adapter.
 
 ## Verification and limits
 
-Local verification: 47 backend tests, TypeScript and optimized Next.js build passed.
+Local verification: 48 backend tests, TypeScript and optimized Next.js build passed.
 Disposable-database publication, idempotence, rollback and retained learner-record
 checks passed. Browser validation passed registration, all 21 path units, the
 pending-grade completion gate, six project listings, a baseline check, draft
 autosave/reload, a recorded development experiment, outcomes and mobile layout.
 It did not simulate or validate model grading. Workspace reports retain the script
 and screenshots. [Server validation run](https://github.com/abhinavkaiser/cortex/actions/runs/40173684090)
-confirmed the production revision remains `5dda923` and all calibration calls fail
-with expired-login 401 responses. Live calibration and deployment remain blocked
-until account sign-in succeeds.
+recorded the earlier Claude login failure. Production remains on `5dda923`. The
+Codex replacement requires its own subscription sign-in and real calibration before
+deployment. No successful live grading is claimed yet.
 
-Two models from one provider are fallible correlated reviewers, not independent
+Two models from the same provider are fallible correlated reviewers, not independent
 accreditation. Source quote verification and a second review reduce unsupported
 amendments but do not guarantee factual accuracy. The instructor can withdraw an
 amendment; base lesson edits invalidate stale amendments and practice credit.

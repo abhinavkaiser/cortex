@@ -45,5 +45,5 @@ def run_experiment(payload,*,runner=None):
                 metrics=dict(baseline_success=results['baseline']['successes'],candidate_success=results['candidate']['successes'],cases=6,
                              wins=sum(not a and b for a,b in zip(results['baseline']['correct'],results['candidate']['correct'])),
                              regressions=sum(a and not b for a,b in zip(results['baseline']['correct'],results['candidate']['correct']))),
-                resolved_model_ids=sorted(models),model=MODELS[0],
+                requested_model_ids=sorted(models),model=MODELS[0],
                 scope='Actual model outputs on fixed synthetic development cases. These results are not a held-out estimate of production reliability.')

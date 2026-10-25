@@ -148,7 +148,7 @@ def generate(
     model: str | None = None,
     temperature: float = 0.7,  # accepted for API-shape compatibility -- the subscription CLI does not expose sampling controls
     top_p: float = 0.95,  # same
-    max_output_tokens: int = 1024,  # same -- not enforced client-side; a real cap would need a different (API-key-based) integration path
+    max_output_tokens: int = 1024,  # accepted for compatibility; not enforced by this CLI adapter
     response_schema: dict | None = None,
     retries: int = 1,  # retries consume the subscription allowance too
     system_prompt_override: str | None = None,

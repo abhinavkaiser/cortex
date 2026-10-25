@@ -64,7 +64,7 @@ export function PromptPlayground() {
                 ~{result.input_tokens} in / ~{result.output_tokens} out tokens · {result.latency_ms}ms
                 {result.served_from_cache && <span className="ml-2 text-brand">· served from cache</span>}
               </span>
-              <span>${result.estimated_cost_usd.toFixed(6)}</span>
+              <span>Subscription usage · allowances apply</span>
             </div>
             <p className="mt-3 whitespace-pre-line text-sm leading-relaxed">{result.response_text}</p>
           </div>
