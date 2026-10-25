@@ -220,9 +220,13 @@ def deploy(python, report):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--deploy', action='store_true')
+    parser.add_argument('--calibrate', action='store_true')
     args = parser.parse_args()
     python, report = preflight()
-    if args.deploy:
+    if args.calibrate:
+        output = run('runuser', '-u', 'cortexapp', '--', str(python), 'scripts/validate_education_models.py', cwd=CHECKOUT / 'backend')
+        notice('Education grader calibration', json.loads(output))
+    elif args.deploy:
         try:
             deploy(python, report)
         except Exception as error:

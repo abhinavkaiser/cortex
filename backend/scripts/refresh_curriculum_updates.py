@@ -9,5 +9,7 @@ from app.services.curriculum_updates import ingest
 if __name__ == '__main__':
     with SessionLocal() as db:
         result = ingest(db)
+        from app.services.education_curriculum import enqueue_amendments
+        result["amendments_queued"] = enqueue_amendments(db)
         print(json.dumps(result))
         raise SystemExit(1 if len(result['errors']) == 3 else 0)

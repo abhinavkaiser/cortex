@@ -39,11 +39,13 @@ def get_lesson(lesson_id: int, user: User = Depends(get_current_user), db: Sessi
         is not None
     )
 
+    from app.services.education_curriculum import served_content
+    markdown, blocks = served_content(db, lesson)
     return LessonDetailOut(
         id=lesson.id,
         title=lesson.title,
-        content_markdown=lesson.content_markdown,
-        content_blocks=lesson.content_blocks or [],
+        content_markdown=markdown,
+        content_blocks=blocks,
         estimated_minutes=lesson.estimated_minutes,
         completed=completed,
         module_title=lesson.module.title if lesson.module else None,

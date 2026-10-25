@@ -62,33 +62,9 @@ def train_benchmark(config):
     epochs=int(number(config,'epochs',low=20,high=500))
     if type(config.get('epochs')) is not int: raise ValueError('epochs must be an integer')
     regularization=number(config,'regularization',low=0,high=1)
-    rng=random.Random(4826)
-    rows=[]
-    for _ in range(96):
-        x=[rng.uniform(-2,2),rng.uniform(-2,2)]
-        y=int(1.4*x[0]-.8*x[1]+rng.gauss(0,.3)>.2)
-        rows.append((x,y))
-    train,validation,test=rows[:56],rows[56:76],rows[76:]
-    mean=[sum(x[j] for x,_ in train)/len(train) for j in range(2)]
-    scale=[math.sqrt(sum((x[j]-mean[j])**2 for x,_ in train)/len(train)) or 1 for j in range(2)]
-    def standard(x):return [(x[j]-mean[j])/scale[j] for j in range(2)]
-    weights=[0.,0.];bias=0.
-    def probability(x):
-        z=max(-40,min(40,sum(w*v for w,v in zip(weights,standard(x)))+bias))
-        return 1/(1+math.exp(-z))
-    for _ in range(epochs):
-        dw=[0.,0.];db=0.
-        for x,y in train:
-            error=probability(x)-y;norm=standard(x)
-            for j in range(2):dw[j]+=error*norm[j]
-            db+=error
-        for j in range(2):weights[j]-=rate*(dw[j]/len(train)+regularization*weights[j])
-        bias-=rate*db/len(train)
-    def accuracy(data):return sum((probability(x)>=.5)==bool(y) for x,y in data)/len(data)
-    metrics=dict(train_count=len(train),validation_count=len(validation),test_count=len(test),
-                 validation_accuracy=accuracy(validation),test_accuracy=accuracy(test),
-                 majority_test_accuracy=max(sum(y for _,y in test),sum(1-y for _,y in test))/len(test),
-                 weights=[round(w,5) for w in weights],bias=round(bias,5),seed=4826)
+    from content.labs.advanced_training import train
+    metrics=train(rate,epochs,regularization)
+
     return dict(checks=dict(no_label_leakage=config.get('use_leaky_feature') is False,
                            heldout_accuracy=metrics['test_accuracy']>=.75),metrics=metrics,
                 scope='Bounded logistic-regression configuration on synthetic data; not a real-world model-quality estimate.')

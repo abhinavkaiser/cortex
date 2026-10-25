@@ -30,6 +30,9 @@ jobs:
       - name: Inspect production and content references
         if: ${{ !inputs.deploy }}
         run: python3 .github/scripts/learning_release.py
+      - name: Calibrate constrained education models
+        if: ${{ !inputs.deploy && github.ref == 'refs/heads/codex/complete-learning' }}
+        run: python3 .github/scripts/learning_release.py --calibrate
       - name: Deploy reviewed release
         if: ${{ inputs.deploy && github.ref == 'refs/heads/main' }}
         run: python3 .github/scripts/learning_release.py --deploy
