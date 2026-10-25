@@ -28,15 +28,21 @@ rolls back its changes. It adds tables, preserves original teaching snapshots an
 refuses to overwrite unrecognized instructor edits. Do not run the seed script
 against existing courses.
 
-A separate daily source refresh links recent announcements to relevant lessons.
-Reviewed content has source references and review dates; announcements are
-explicitly labeled as investigation prompts, not verified lesson amendments.
-Older courses remain in the catalog and are marked as not yet reviewed. Guided
-practice, self-reviewed writing and the project kit do not constitute an
-independently graded advanced qualification.
+The advanced release adds six ML/research lessons and six specialization projects
+with three assessed milestones each. Durable two-model rubric feedback checks quoted
+evidence and objective benchmarks; learners can revise, save drafts and appeal.
+Baseline, transfer and seven-day checks separate completion from retained skill.
+The prompt project runs actual comparisons instead of trusting claimed success counts.
 
-See [.github/LEARNING_RELEASE.md](.github/LEARNING_RELEASE.md) for deployment,
-backup, verification and current limitations.
+Daily source checks can produce versioned teaching additions after source quotation
+checks and a separate model review. Updated practice requirements invalidate stale
+credit. Unsupported updates stay unpublished, and instructors can withdraw additions.
+Older catalog lessons still identify their review status.
+
+See [.github/EDUCATION_RELEASE.md](.github/EDUCATION_RELEASE.md) for calibration,
+publication, backup, deployment and limitations. The advanced release is prepared;
+production grading verification requires restoring the server's Claude login.
+See [the learning pilot protocol](docs/learning-pilot.md) for real outcome validation.
 
 ## Stack
 

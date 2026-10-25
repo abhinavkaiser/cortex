@@ -6,8 +6,8 @@ working elsewhere in this environment (xiot's aiService.js -- see that
 file's own comment on why: one shared subscription session, not a metered
 API key).
 
-Structured JSON output is achieved by prompt instruction + parsing (the
-`claude` CLI has no native --output-schema flag the way Codex's CLI does)
+This adapter requests structured JSON through prompt instruction + parsing
+without asserting a native schema guarantee at this layer
 with one repair re-prompt if the first reply doesn't parse -- mirrors
 xiot's generateJson/extractJson exactly, a pattern already proven to work
 against this same CLI.
@@ -34,12 +34,13 @@ CLAUDE_BIN = settings.claude_bin
 DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant. Answer the request directly and concisely."
 
 
-def _spawn_claude(prompt: str, model: str | None, system_prompt: str = DEFAULT_SYSTEM_PROMPT, timeout: int = 250) -> str:
+def _spawn_claude(prompt: str, model: str | None, system_prompt: str = DEFAULT_SYSTEM_PROMPT, timeout: int = 250, structured_envelope: bool = False):
     args = [CLAUDE_BIN, "--print", "--tools", "", "--strict-mcp-config",
             "--setting-sources", "", "--disable-slash-commands", "--no-session-persistence",
             "--permission-mode", "dontAsk", "--system-prompt", system_prompt]
-    if model:
-        args += ["--model", model]
+    args += ["--model", model or "sonnet"]
+    if structured_envelope:
+        args += ["--output-format", "json"]
 
     with tempfile.TemporaryDirectory(prefix="cortex-model-") as isolated:
         result = subprocess.run(
@@ -48,6 +49,11 @@ def _spawn_claude(prompt: str, model: str | None, system_prompt: str = DEFAULT_S
     if result.returncode != 0:
         detail = (result.stderr or result.stdout or f"claude exited with code {result.returncode}").strip()
         raise RuntimeError(f"Claude CLI call failed: {detail[:500]}")
+    if structured_envelope:
+        envelope = json.loads(result.stdout)
+        if envelope.get('is_error') or not isinstance(envelope.get('result'), str):
+            raise RuntimeError('Claude returned an unsuccessful response')
+        return dict(text=envelope['result'], model_ids=list((envelope.get('modelUsage') or {}).keys()))
     return result.stdout.strip()
 
 
@@ -76,6 +82,8 @@ def _schema_example(schema: dict) -> dict:
             example[key] = spec.get("description", "...")
         elif t in ("integer", "number"):
             example[key] = 0
+        elif t == "boolean":
+            example[key] = False
         elif t == "array":
             item_type = spec.get("items", {}).get("type", "string")
             if item_type == "object":

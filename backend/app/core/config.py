@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     # services/claude_client.py -- not a billed API key. `claude_bin` only
     # needs overriding if the CLI isn't on PATH under that exact name.
     claude_bin: str = "claude"
-    claude_model: str = "claude-sonnet-4-6"
+    claude_model: str = "sonnet"
 
     # Local embeddings (sentence-transformers), no API key either -- see
     # claude_client.py's embed().

@@ -13,7 +13,9 @@ from app.services.education_worker import run_one
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--watch',action='store_true');parser.add_argument('--limit',type=int,default=1);args=parser.parse_args()
     # Multiple service invocations cannot run the same model queue concurrently.
-    lock=open(Path(tempfile.gettempdir())/f'cortex-education-{os.getuid()}.lock','a')
+    lock_dir=Path.home()/'.cache/cortex-education'
+    lock_dir.mkdir(parents=True,exist_ok=True,mode=0o700)
+    lock=open(lock_dir/'worker.lock','a')
     try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     except BlockingIOError:raise SystemExit('An education worker is already active')
     processed=0

@@ -19,7 +19,7 @@ def require_flags(data, flags):
     return {name: data.get(name) is True for name in flags}
 
 
-def retrieval_benchmark(config):
+def retrieval_benchmark(config, preview=False):
     if config.get('method') not in ('keyword', 'bm25') or type(config.get('k')) is not int or not 1 <= config['k'] <= 5:
         raise ValueError('Choose method keyword/bm25 and integer k between 1 and 5')
     docs = json.loads((Path(__file__).resolve().parents[2] / 'content/labs/documents.json').read_text())
@@ -46,6 +46,8 @@ def retrieval_benchmark(config):
     cases = [('current returns policy',['returns-current']), ('damaged goods supervisor',['damage']),
              ('invoice download account',['invoice','access']), ('subscription renewal cancellation',['cancellation']),
              ('shop closed Sunday',['hours']), ('shipping delivery five pounds',['delivery'])]
+    if preview:
+        cases=[('returns policy',['returns-current']),('damaged goods',['damage']),('cancel subscription',['cancellation']),('delivery costs',['delivery'])]
     hits = required = 0
     for query,relevant in cases:
         found=rank(query);hits+=len(set(found)&set(relevant));required+=len(relevant)
@@ -70,12 +72,36 @@ def train_benchmark(config):
                 scope='Bounded logistic-regression configuration on synthetic data; not a real-world model-quality estimate.')
 
 
-def benchmark(project, milestone, data):
+def tool_benchmark(config):
+    def simulate(operations):
+        processed={};total=0;outcomes=[]
+        for amount,approved,key in operations:
+            if config.get('require_approval') and not approved:
+                outcomes.append('rejected');continue
+            if config.get('validate_amount') and (type(amount) is not int or amount<=0 or amount>100):
+                outcomes.append('rejected');continue
+            if config.get('idempotency') and key in processed:
+                outcomes.append('duplicate' if processed[key]==amount else 'rejected');continue
+            if config.get('enforce_total') and total+amount>100:
+                outcomes.append('rejected');continue
+            processed[key]=amount;total+=amount;outcomes.append('recorded')
+        return outcomes,total
+    cases=[('unauthorized',[(50,False,'a')],['rejected'],0),
+           ('invalid_amount',[(-1,True,'a')],['rejected'],0),
+           ('retry',[(50,True,'a'),(50,True,'a')],['recorded','duplicate'],50),
+           ('key_conflict',[(50,True,'a'),(60,True,'a')],['recorded','rejected'],50),
+           ('cumulative_limit',[(80,True,'a'),(30,True,'b')],['recorded','rejected'],80)]
+    checks={name:simulate(operations)==(expected,total) for name,operations,expected,total in cases}
+    return dict(checks=checks,metrics=dict(adversarial_cases=len(cases),passed=sum(checks.values())),
+                scope='The bounded configuration is executed against five synthetic adversarial traces; submitted implementation code is reviewed separately.')
+
+
+def benchmark(project, milestone, data, preview=False):
     if not isinstance(data,dict) or len(json.dumps(data))>8000:raise ValueError('Artifact must be a JSON object under 8,000 characters')
     slug=project['slug']
     if slug=='grounded-support-engineer':
-        if milestone==0:return retrieval_benchmark(data)
-        if milestone==1:return dict(checks=require_flags(data,['require_approval','validate_amount','enforce_total','idempotency']),metrics=dict(adversarial_case_families=4),scope='Executor policy checks; code implementation is separately reviewed.')
+        if milestone==0:return retrieval_benchmark(data,preview=preview)
+        if milestone==1:return tool_benchmark(data)
         values={k:number(data,k,expected=v) for k,v in project['milestones'][2]['starter'].items()}
         daily=values['requests_per_day']*(values['input_tokens']*values['input_per_million']+values['output_tokens']*values['output_per_million'])/1_000_000
         return dict(checks=dict(within_synthetic_budget=daily<=40),metrics=dict(daily_variable_cost=round(daily,2)),scope='Synthetic prices; excludes infrastructure and review costs.')
@@ -117,6 +143,12 @@ def benchmark(project, milestone, data):
         if milestone==2:checks['pricing_not_claimed_validated']=data.get('pricing_validated') is False
         return dict(checks=checks,metrics={},scope='Product control contract; substantive design and evidence are rubric-graded.')
     if slug=='ml-research-reproduction':
-        if milestone<2:return train_benchmark(data)
+        if milestone<2:
+            result=train_benchmark(data)
+            if preview:
+                result['metrics']={key:value for key,value in result['metrics'].items() if not key.startswith('test_') and key!='majority_test_accuracy'}
+                result['checks']={'no_label_leakage':data.get('use_leaky_feature') is False}
+                result['scope']='Development run; final test metrics are not exposed in this preview.'
+            return result
         return dict(checks=require_flags(data,['protocol_recorded','heldout_separate','limitations_reported','primary_source']),metrics={},scope='Research protocol contract; two-model review checks the reported evidence.')
     raise ValueError('Unknown project')

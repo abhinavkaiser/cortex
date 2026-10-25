@@ -10,12 +10,16 @@ def item(prompt, correct, alternatives, explanation, offset):
 
 
 def questions(skill,variant):
-    if skill not in SKILLS or variant not in (0,1,2):raise ValueError('Unknown evidence check')
-    case=['a customer-support assistant','an internal policy assistant','an invoice-drafting assistant'][variant]
+    if skill not in SKILLS or not 0 <= variant <= 10000:raise ValueError('Unknown evidence check')
+    index=variant%3
+    case=['a customer-support assistant','an internal policy assistant','an invoice-drafting assistant'][index]
     entries=[]
     def add(prompt,correct,wrong,why):entries.append(item(prompt,correct,wrong,why,variant+len(entries)))
     if skill=='engineering':
-        relevant,found,total=[(3,2,4),(4,3,5),(5,2,3)][variant]
+        relevant,found,total=[(3,2,4),(4,3,5),(5,2,3)][index]
+        if variant>=3:
+            relevant=3+variant%4;found=1+variant%(relevant-1);total=found+1+variant%2
+            if total==relevant:total+=1
         add(f'A retrieval query needs {relevant} documents. Top results contain {found} relevant and {total-found} irrelevant documents. What is recall?',
             f'{found}/{relevant}',[f'{found}/{total}',f'{total}/{relevant}','All results are correct'],
             'Recall divides relevant items retrieved by all relevant items needed; precision uses all retrieved results as denominator.')
@@ -26,7 +30,8 @@ def questions(skill,variant):
             'Report retry selection, cost and correlation alongside per-attempt reliability.',['Treat the best retry as the expected outcome of every first attempt.','Treat retry success as proof that no selection policy or extra cost is needed.','Use the single best answer to characterize the average attempt.'],
             'At-least-one success over several attempts is a different deployment policy and must include selection, cost and correlation.')
     elif skill=='analysis':
-        a,n,b,m=[(40,400,60,1000),(30,300,40,800),(20,200,18,300)][variant]
+        a,n,b,m=[(40,400,60,1000),(30,300,40,800),(20,200,18,300)][index]
+        if variant>=3:n,m=1000,3000;a=(7+variant%7)*10;b=(3+variant%4)*30
         before=round(100*a/n);after=round(100*b/m)
         add(f'Events change from {a}/{n} cases to {b}/{m}. Which rate comparison is correct?',
             f'{before}% to {after}%.',[f'{a}% to {b}%.',f'{after}% to {before}%.','The denominator does not matter.'],
@@ -38,7 +43,8 @@ def questions(skill,variant):
             'Recover a valid denominator before accepting the percentage claim.',['Use the denominator from a similar report to keep the workflow moving.',"Keep the claim if its magnitude agrees with the stakeholder's intuition.",'Average the percentage with another report to reduce uncertainty.'],
             'A missing denominator is an evidence gap, not a wording problem.')
     elif skill=='leadership':
-        claims,eligible,adoption,minutes,rate=[(10000,.4,.5,6,50),(12000,.25,.6,8,60),(8000,.5,.75,4,40)][variant]
+        claims,eligible,adoption,minutes,rate=[(10000,.4,.5,6,50),(12000,.25,.6,8,60),(8000,.5,.75,4,40)][index]
+        if variant>=3:claims=10000+variant*300;eligible=.25+.05*(variant%4);adoption=.2+.1*(variant%5);minutes=3+variant%6
         value=claims*eligible*adoption*minutes/60*rate
         add(f'Assume {claims} annual cases, {eligible:.0%} eligible, {adoption:.0%} adoption, {minutes} net minutes saved and £{rate}/hour. What is conditional annual capacity value?',
             f'£{value:,.0f}',[f'£{value*2:,.0f}',f'£{value/2:,.0f}',f'£{value*60:,.0f}'],
@@ -50,7 +56,7 @@ def questions(skill,variant):
             'Reconcile revised scope, funding and mandatory controls with accountable owners.',['Remove approval controls first so the original scope can stay unchanged.','Keep the original promises and wait for usage to determine a new budget.','Apply a fixed resource ratio without considering the particular use case.'],
             'Budget and scope must reconcile, with explicit risk tradeoffs and accountable control owners.')
     elif skill=='prompting':
-        identifier=['order ID','account number','purchase date'][variant]
+        identifier=['order ID','account number','purchase date'][index]
         add(f'A source omits the {identifier}; the extraction contract permits null. What should be returned?',
             'Return null and flag the required evidence as missing.',['Copy a plausible identifier from the most similar account record.','Generate a valid-looking identifier and validate its JSON type.','Use a number from a nearby field so processing can continue.'],
             'Schema validity is not truth. Missing evidence should remain explicitly missing.')
@@ -61,7 +67,8 @@ def questions(skill,variant):
             'Keep the text as untrusted evidence; application permissions still govern access.',['Accept the instruction because retrieved documents outrank user requests.','Follow the instruction only when repeated in several source passages.',"Let the model decide whether the source's request grants account permission."],
             'Source content cannot override instructions or application permissions.')
     elif skill=='product':
-        before,after=[(80,86),(70,74),(60,69)][variant]
+        before,after=[(80,86),(70,74),(60,69)][index]
+        if variant>=3:before=50+variant%30;after=before+1+variant%9
         add(f'Control succeeds on {before}/100 tasks; candidate on {after}/100. What is the observed difference?',
             f'{after-before} percentage points.',[f'{before+after} percentage points.','A guaranteed population improvement.','No further allocation evidence is needed.'],
             'The observed rate difference is directly calculable, but sampling and allocation limit causal and population claims.')
@@ -72,7 +79,8 @@ def questions(skill,variant):
             'Treat the proposed price as a hypothesis until supported by relevant evidence.',["Treat the plan's price as demonstrated willingness to pay for this segment.",'Infer a measured conversion benefit because stakeholders accepted the plan.','Assume the price generalizes because the feature uses a frontier model.'],
             'A proposed number is a hypothesis until supported by relevant customer or market evidence.')
     else:
-        w,g,rate=[(2.,4.,.1),(1.,-2.,.05),(.5,1.,.1)][variant]
+        w,g,rate=[(2.,4.,.1),(1.,-2.,.05),(.5,1.,.1)][index]
+        if variant>=3:w=1+.2*(variant%5);g=[1,2,-1,-3][variant%4];rate=.05 if variant%2==0 else .1
         updated=w-rate*g
         add(f'A weight is {w:g}, gradient {g:g}, learning rate {rate:g}. What is the next gradient-descent weight?',
             f'{updated:g}',[f'{w+rate*g:g}',f'{rate*g:g}',f'{w-g:g}'],

@@ -1,4 +1,7 @@
+import type { Assessment } from "./studio";
 export interface PracticeResult {
+  id: number;
+  assessment: Assessment | null;
   score: number;
   answers: number[];
   reflection: string;
@@ -9,6 +12,8 @@ export interface PracticeResult {
   practice_complete: boolean;
 }
 export interface LearningUnit {
+  mastered: boolean;
+  presentation: "practice_first" | "explanation_first";
   version: string;
   objective: string;
   prerequisites: string;
@@ -27,6 +32,7 @@ export interface LearningUnit {
   };
 }
 export interface PathUnit {
+  assessed: boolean;
   lesson_id: number;
   title: string;
   stage: string;

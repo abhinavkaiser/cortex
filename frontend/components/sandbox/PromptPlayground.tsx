@@ -7,7 +7,7 @@ import { ParamControls } from "./ParamControls";
 import { TokenCostMeter } from "./TokenCostMeter";
 
 const DEFAULT_PARAMS = {
-  model: "claude-sonnet-4-6",
+  model: "sonnet",
   temperature: 0.7,
   top_p: 0.95,
   max_output_tokens: 1024,
@@ -61,7 +61,7 @@ export function PromptPlayground() {
           <div className="rounded-xl border border-line p-4">
             <div className="flex items-center justify-between text-xs text-ink-muted">
               <span>
-                {result.input_tokens} in / {result.output_tokens} out tokens · {result.latency_ms}ms
+                ~{result.input_tokens} in / ~{result.output_tokens} out tokens · {result.latency_ms}ms
                 {result.served_from_cache && <span className="ml-2 text-brand">· served from cache</span>}
               </span>
               <span>${result.estimated_cost_usd.toFixed(6)}</span>

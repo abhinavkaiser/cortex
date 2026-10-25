@@ -4,6 +4,9 @@ independently of the (expensive, rate-limited) generation stage below it.
 """
 
 from dataclasses import dataclass
+import calendar
+from datetime import datetime,timedelta
+from urllib.parse import urlsplit
 
 import feedparser
 import httpx
@@ -24,6 +27,8 @@ class RawArticle:
 
 def fetch_recent_articles(max_per_feed: int = 8) -> list[RawArticle]:
     articles: list[RawArticle] = []
+    seen=set()
+    now=datetime.utcnow()
     with httpx.Client(timeout=10.0, headers={"User-Agent": "AIAcademyDailyPulse/1.0"}) as client:
         for feed_url in settings.daily_pulse_rss_feeds:
             try:
@@ -36,6 +41,12 @@ def fetch_recent_articles(max_per_feed: int = 8) -> list[RawArticle]:
 
             parsed = feedparser.parse(resp.content)
             for entry in parsed.entries[:max_per_feed]:
+                timestamp=entry.get('published_parsed') or entry.get('updated_parsed')
+                if not timestamp:continue
+                published=datetime.utcfromtimestamp(calendar.timegm(timestamp))
+                url=entry.get('link','')
+                if published<now-timedelta(days=7) or published>now+timedelta(minutes=10) or urlsplit(url).scheme!='https' or url in seen:continue
+                seen.add(url)
                 articles.append(
                     RawArticle(
                         title=getattr(entry, "title", "").strip(),

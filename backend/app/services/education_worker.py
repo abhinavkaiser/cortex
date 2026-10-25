@@ -1,6 +1,6 @@
 """One durable worker; model output never executes tools or submitted code."""
 from datetime import datetime,timedelta
-from app.models.education import EducationJob,EducationWorker,LessonAmendment,GraderCalibration
+from app.models.education import EducationJob,EducationWorker,LessonAmendment,GraderCalibration,ProjectExperiment
 from app.models.learning import LearningUnit
 from app.models.lesson import Lesson
 from app.services.education_queue import claim
@@ -41,10 +41,17 @@ def run_one(factory, *, assessor=None, builder=None, require_calibration=True):
         job_id,kind,payload,attempts=job.id,job.kind,job.payload,job.attempts
         heartbeat.current_job=job_id;db.commit()
     try:
-        result=(builder or build_amendment)(payload) if kind=='curriculum' else (assessor or assess)(payload)
+        if kind=='curriculum':result=(builder or build_amendment)(payload)
+        elif kind=='prompt_experiment':
+            from app.services.prompt_experiments import run_experiment
+            result=run_experiment(payload)
+        else:result=(assessor or assess)(payload)
         with factory() as db:
             job=db.get(EducationJob,job_id)
             if job.status!='running' or job.attempts!=attempts:return job_id
+            current_calibration=db.get(GraderCalibration,1)
+            if require_calibration and (not current_calibration or not current_calibration.passed):
+                raise ValueError('Calibration changed during assessment')
             if kind=='curriculum':
                 if result['approved']:
                     amendment=publish_amendment(db,job,result)
@@ -52,6 +59,11 @@ def run_one(factory, *, assessor=None, builder=None, require_calibration=True):
                     job.status='published'
                 else:job.status='needs_review'
                 job.passed=False
+            elif kind=='prompt_experiment':
+                record=db.get(ProjectExperiment,job.subject_id)
+                if not record:raise ValueError('Experiment record missing')
+                record.metrics=result
+                job.status='completed';job.passed=False
             else:
                 job.status=result['status'];job.passed=result['passed']
             job.result=result;job.finished_at=datetime.utcnow()

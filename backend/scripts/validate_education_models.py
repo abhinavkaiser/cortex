@@ -25,7 +25,7 @@ def calibrate():
             result=assess(dict(title='Refund analysis control',case='Before 100/1000, after 120/2000; no causal allocation supplied.',
                                task='Calculate rates, correct the causal claim and propose a comparison.',report=report,rubric=RUBRIC,
                                benchmark=dict(checks={},metrics={})))
-            results.append(dict(control=name,expected_pass=expected,observed_pass=result['passed'],score=result['score'],status=result['status'],correct=result['passed']==expected))
+            results.append(dict(control=name,expected_pass=expected,observed_pass=result['passed'],score=result['score'],status=result['status'],model_versions=result.get('resolved_model_ids',[]),correct=result['passed']==expected))
         except Exception as error:
             message=str(error).lower()
             code='authentication' if any(word in message for word in ['not logged in','authentication','oauth','credentials','api key']) else 'model_unavailable' if 'model' in message and any(word in message for word in ['not found','not available','not exist','access']) else 'unsupported_flag' if any(word in message for word in ['unknown option','unknown argument','invalid value','invalid argument']) else 'permission' if 'permission' in message else 'capacity' if any(word in message for word in ['rate limit','usage limit','credit balance','overloaded']) else 'unanchored_evidence' if 'anchored' in message else 'invalid_response'
@@ -34,8 +34,13 @@ def calibrate():
 
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--output');parser.add_argument('--record',action='store_true');args=parser.parse_args()
-    try:result=calibrate()
+    parser=argparse.ArgumentParser();parser.add_argument('--output');parser.add_argument('--input');parser.add_argument('--record',action='store_true');args=parser.parse_args()
+    try:
+        result=json.loads(Path(args.input).read_text()) if args.input else calibrate()
+        if result.get("models")!=list(MODELS) or len(result.get("results",[]))!=len(CONTROLS) or type(result.get("passed")) is not bool:
+            raise ValueError("Invalid calibration report")
+        if result["passed"] and not all(item.get("correct") is True for item in result["results"]):
+            raise ValueError("Calibration results did not all pass")
     except Exception as error:
         result=dict(passed=False,models=list(MODELS),checked_at=datetime.utcnow().isoformat(),results=[],error_type=type(error).__name__)
     if args.output:Path(args.output).write_text(json.dumps(result))

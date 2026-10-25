@@ -24,7 +24,7 @@ def presentation(user_id):
 
 
 def check_questions(user_id,skill,phase):
-    variant={'baseline':0,'transfer':1,'retention':2}[phase]
+    variant=3+int(phase.split('_')[1]) if phase.startswith('reassessment_') else {'baseline':0,'transfer':1,'retention':2}[phase]
     bank=questions(skill,variant)
     rng=seeded(user_id,skill+':'+phase)
     rng.shuffle(bank)
@@ -50,14 +50,16 @@ def course_project_passed(db,user_id,course_slug):
     project=next((p for p in PROJECTS if p['course']==course_slug),None)
     if not project:return True
     transfer=db.query(EvidenceAttempt).filter_by(user_id=user_id,skill=project['skill'],phase='transfer').first()
-    return milestones_passed(db,user_id,project) and transfer is not None and transfer.score>=80
+    validated=db.query(EvidenceAttempt).filter(EvidenceAttempt.user_id==user_id,EvidenceAttempt.skill==project['skill'],EvidenceAttempt.phase!='baseline',EvidenceAttempt.score>=80).first()
+    return milestones_passed(db,user_id,project) and validated is not None
 
 
 def evidence_state(db,user_id,skill):
     rows={row.phase:row for row in db.query(EvidenceAttempt).filter_by(user_id=user_id,skill=skill).all()}
     baseline,transfer,retention=(rows.get(key) for key in ['baseline','transfer','retention'])
     due=transfer.created_at+timedelta(days=7) if transfer else None
-    return dict(skill=skill,baseline=baseline.score if baseline else None,transfer=transfer.score if transfer else None,
+    rechecks=[row for name,row in rows.items() if name.startswith('reassessment_')]
+    return dict(skill=skill,reassessment_count=len(rechecks),reassessment_best=max((row.score for row in rechecks),default=None),baseline=baseline.score if baseline else None,transfer=transfer.score if transfer else None,
                 retention=retention.score if retention else None,items_per_check=6,
                 transfer_change_points=transfer.score-baseline.score if baseline and transfer else None,
                 retention_due=due,retention_available=bool(due and due<=datetime.utcnow() and not retention),

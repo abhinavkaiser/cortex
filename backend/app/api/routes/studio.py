@@ -14,7 +14,7 @@ from app.models.lesson import Lesson
 from app.models.learning import LearningUnit,PracticeAttempt
 from app.models.user import User
 from app.models.education import (AssessmentAppeal,AmendmentAttempt,EducationJob,EducationWorker,EvidenceAttempt,
-    GraderCalibration,LearningEvent,LearningStudyAssignment,LessonAmendment,ProjectSubmission)
+    GraderCalibration,LearningEvent,LearningStudyAssignment,LessonAmendment,ProjectSubmission,ProjectExperiment,ProjectDraft)
 from app.services.education_curriculum import amendments,effective_unit
 from app.services.education_grading import MODELS,practice_payload
 from app.services.education_queue import enqueue,public_job
@@ -40,7 +40,7 @@ class ProjectWork(StrictBody):
 
 
 class CheckWork(StrictBody):
-    phase:Literal['baseline','transfer','retention']
+    phase:Literal['baseline','transfer','retention','reassessment']
     answers:list[StrictInt]=Field(min_length=6,max_length=6)
 
 
@@ -95,7 +95,10 @@ def project_progress(db,user,spec):
             job=db.query(EducationJob).filter_by(kind='project',subject_id=work.id,user_id=user.id).first()
             passed=passed or bool(job and job.status=='graded' and job.passed)
             submissions.append(dict(id=work.id,report=work.report,artifact=work.artifact,benchmark=work.benchmark,submitted_at=work.submitted_at,assessment=public_job(job)))
-        milestones.append(dict(**definition,index=index,passed=passed,submissions=submissions[:10]))
+        experiments=db.query(ProjectExperiment).filter_by(user_id=user.id,project_slug=spec['slug'],milestone=index,version=project_version(spec)).order_by(ProjectExperiment.id.desc()).limit(8).all()
+        draft=db.query(ProjectDraft).filter_by(user_id=user.id,project_slug=spec['slug'],milestone=index,version=project_version(spec)).first()
+        milestones.append(dict(**definition,index=index,passed=passed,submissions=submissions[:10],draft=dict(artifact=draft.artifact_text,report=draft.report,updated_at=draft.updated_at) if draft else None,
+                               experiments=[dict(id=e.id,artifact=e.artifact,benchmark=e.metrics,created_at=e.created_at,assessment=public_job(db.query(EducationJob).filter_by(kind='prompt_experiment',subject_id=e.id,user_id=user.id).first())) for e in experiments]))
     return milestones
 
 
@@ -119,7 +122,7 @@ def project_detail(slug:str,user:User=Depends(get_current_user),db:Session=Depen
     milestones=project_progress(db,user,spec)
     for milestone in milestones:
         milestone['reading']=[dict(id=readings[key].id,title=readings[key].title) for key in milestone['reading'] if key in readings]
-    return {key:spec[key] for key in ['slug','title','audience','hours','skill','brief','evidence','course']} | dict(version=project_version(spec),milestones=milestones,evidence_check=evidence_state(db,user.id,spec['skill']))
+    return {key:spec[key] for key in ['slug','title','audience','hours','skill','brief','evidence','course']} | dict(version=project_version(spec),milestones=milestones,milestones_passed=sum(item['passed'] for item in milestones),milestones_total=len(milestones),completed=course_project_passed(db,user.id,spec['course']),evidence_check=evidence_state(db,user.id,spec['skill']))
 
 
 @router.post('/projects/{slug}/submissions',status_code=202)
@@ -139,8 +142,18 @@ def submit_project(slug:str,body:ProjectWork,user:User=Depends(get_current_user)
                            artifact=body.artifact,report=body.report.strip(),benchmark=computed)
     db.add(work);db.flush()
     definition=spec['milestones'][body.milestone]
+    experiments=db.query(ProjectExperiment).filter_by(user_id=user.id,project_slug=slug,milestone=body.milestone,version=body.version).order_by(ProjectExperiment.id.desc()).limit(8).all()
+    if slug=='team-prompt-evaluation' and body.milestone==1:
+        measured=next((e for e in experiments if e.metrics.get('status')=='completed' and e.metrics.get('results')),None)
+        measured=(db.query(ProjectExperiment).filter_by(user_id=user.id,project_slug=slug,milestone=1,version=body.version)
+                  .filter(ProjectExperiment.metrics['status'].as_string()=='completed').order_by(ProjectExperiment.id.desc()).first())
+        computed={**computed,'checks':{**computed['checks'],'measured_prompt_run':measured is not None,
+                 'reported_outcomes_match':bool(measured and body.artifact.get('baseline')==measured.metrics['results']['baseline']['correct'] and body.artifact.get('candidate')==measured.metrics['results']['candidate']['correct'])}}
+        work.benchmark=computed
+        if measured and all(e.id!=measured.id for e in experiments):experiments.append(measured)
     payload=dict(title=spec['title']+' — '+definition['title'],case=spec['evidence'],task=definition['task'],
-                 report=work.report,rubric=definition['rubric'],artifact=work.artifact,benchmark=computed,course_id=course.id)
+                 report=work.report,rubric=definition['rubric'],artifact=work.artifact,benchmark=computed,course_id=course.id,
+                 recorded_experiments=[dict(id=e.id,configuration=e.artifact,result=e.metrics,recorded_at=e.created_at.isoformat()) for e in experiments])
     job=enqueue(db,key=f'project:{work.id}',kind='project',user_id=user.id,subject_id=work.id,version=work.version,payload=payload)
     db.commit()
     return dict(submission_id=work.id,benchmark=computed,assessment=public_job(job))
@@ -153,7 +166,8 @@ def feedback(job_id:int,user:User=Depends(get_current_user),db:Session=Depends(g
 
 @router.post('/jobs/{job_id}/retry',status_code=202)
 def retry(job_id:int,user:User=Depends(get_current_user),db:Session=Depends(get_db)):
-    job=own_job(db,job_id,user)
+    job=own_job(db,job_id,user,reviewer=True)
+    if job.user_id!=user.id and not (job.kind=='curriculum' and can_review(db,user,job)):raise HTTPException(403,'Cannot retry another learner’s assessment')
     if job.status!='failed' or job.attempts>=3:raise HTTPException(409,'Only failed assessments with fewer than three processing attempts can be retried')
     job.status='queued';job.passed=False;job.result={};db.commit()
     return public_job(job)
@@ -190,8 +204,10 @@ def review_queue(user:User=Depends(get_current_user),db:Session=Depends(get_db))
     for job in rows:
         if not can_review(db,user,job):continue
         request=db.query(AssessmentAppeal).filter_by(job_id=job.id,status='open').first()
-        if job.status!='needs_review' and not request:continue
-        result.append(dict(assessment=public_job(job),work=job.payload,appeal=dict(id=request.id,reason=request.reason) if request else None))
+        if job.status!='needs_review' and not request and not (job.kind=='curriculum' and job.status=='failed'):continue
+        work=job.payload
+        if job.kind=='curriculum':work=dict(title=job.payload['lesson_title']+' — source update',case=job.payload['source_title']+'\n'+job.payload['url'],task='Inspect source evidence and the independent review before retrying a failed update or preparing a corrected draft.',report=job.result.get('amendment',{}).get('markdown',job.result.get('message','')),rubric=[])
+        result.append(dict(assessment=public_job(job),work=work,appeal=dict(id=request.id,reason=request.reason) if request else None))
     return result[:50]
 
 
@@ -200,6 +216,7 @@ def review(job_id:int,body:ReviewWork,user:User=Depends(get_current_user),db:Ses
     job=own_job(db,job_id,user,reviewer=True)
     if not can_review(db,user,job):raise HTTPException(403,'Only the owning instructor or an admin can grade this work')
     if job.kind not in ('practice','project') or job.status in ('queued','running'):raise HTTPException(409,'This job is not ready for instructor grading')
+    if job.user_id==user.id and body.passed:raise HTTPException(403,'Self-approval is not an independent assessment; revise the work or ask another instructor')
     if body.passed and (body.score<75 or not all(v is True for v in job.payload.get('benchmark',{}).get('checks',{}).values())):
         raise HTTPException(422,'A pass requires at least 75 and all objective checks; failed artifacts must be revised')
     original=job.result
@@ -215,30 +232,46 @@ def review(job_id:int,body:ReviewWork,user:User=Depends(get_current_user),db:Ses
 
 
 @router.get('/checks/{skill}/{phase}')
-def get_check(skill:str,phase:Literal['baseline','transfer','retention'],user:User=Depends(get_current_user),db:Session=Depends(get_db)):
+def get_check(skill:str,phase:Literal['baseline','transfer','retention','reassessment'],user:User=Depends(get_current_user),db:Session=Depends(get_db)):
     if skill not in SKILLS:raise HTTPException(404,'Skill not found')
-    existing=db.query(EvidenceAttempt).filter_by(user_id=user.id,skill=skill,phase=phase).first()
-    if existing:return dict(completed=True,score=existing.score,questions=[])
+    record_phase=phase
+    if phase=='reassessment':
+        prior=(db.query(EvidenceAttempt).filter(EvidenceAttempt.user_id==user.id,EvidenceAttempt.skill==skill,EvidenceAttempt.phase.like('reassessment_%')).order_by(EvidenceAttempt.id.desc()).all())
+        transfer=db.query(EvidenceAttempt).filter_by(user_id=user.id,skill=skill,phase='transfer').first()
+        if not transfer:raise HTTPException(409,'Complete the original transfer check before reassessment')
+        latest=prior[0] if prior else transfer
+        project=next(p for p in PROJECTS if p['skill']==skill)
+        revised=(db.query(ProjectSubmission).join(EducationJob,(EducationJob.subject_id==ProjectSubmission.id)&(EducationJob.kind=='project'))
+                 .filter(ProjectSubmission.user_id==user.id,ProjectSubmission.project_slug==project['slug'],ProjectSubmission.milestone==2,
+                         ProjectSubmission.version==project_version(project),EducationJob.passed.is_(True),EducationJob.status=='graded',
+                         EducationJob.finished_at>latest.created_at).first())
+        if not revised:raise HTTPException(409,'Revise the final milestone after your last check and receive a passing assessment before reassessment')
+        record_phase='reassessment_'+str(len(prior)+1)
+    existing=db.query(EvidenceAttempt).filter_by(user_id=user.id,skill=skill,phase=record_phase).first()
+    if existing:return dict(completed=True,score=existing.score,questions=[dict(question=q['question'],choices=q['choices']) for q in existing.snapshot['questions']],feedback=[dict(correct=a==q['correct_index'],explanation=q['explanation']) for a,q in zip(existing.answers,existing.snapshot['questions'])])
     state=evidence_state(db,user.id,skill)
     if phase!='baseline' and state['baseline'] is None:raise HTTPException(409,'Take the baseline check first')
     if phase=='transfer':
         project=next(p for p in PROJECTS if p['skill']==skill)
         if not milestones_passed(db,user.id,project):raise HTTPException(409,'Pass all project milestones before the transfer check')
     if phase=='retention' and not state['retention_available']:raise HTTPException(409,'The delayed check opens seven days after the transfer check')
-    return dict(completed=False,questions=[dict(question=q['question'],choices=q['choices']) for q in check_questions(user.id,skill,phase)],phase=phase,skill=skill)
+    return dict(completed=False,questions=[dict(question=q['question'],choices=q['choices']) for q in check_questions(user.id,skill,record_phase)],phase=phase,record_phase=record_phase,skill=skill)
 
 
 @router.post('/checks/{skill}')
 def submit_check(skill:str,body:CheckWork,user:User=Depends(get_current_user),db:Session=Depends(get_db)):
     state=get_check(skill,body.phase,user,db)
     if state['completed']:raise HTTPException(409,'This check is already recorded; use a later phase to measure progress')
-    bank=check_questions(user.id,skill,body.phase)
+    record_phase=state.get('record_phase',body.phase)
+    bank=check_questions(user.id,skill,record_phase)
     if any(a<0 or a>=len(q['choices']) for a,q in zip(body.answers,bank)):raise HTTPException(422,'Choose a valid answer for each item')
     score=round(100*sum(a==q['correct_index'] for a,q in zip(body.answers,bank))/len(bank))
-    record=EvidenceAttempt(user_id=user.id,skill=skill,phase=body.phase,variant={'baseline':0,'transfer':1,'retention':2}[body.phase],
-                           answers=body.answers,score=score,snapshot=dict(protocol=PROTOCOL,instrument='parallel-six-item-v1',questions=bank))
+    record=EvidenceAttempt(user_id=user.id,skill=skill,phase=record_phase,variant=3+int(record_phase.split('_')[1]) if record_phase.startswith('reassessment_') else {'baseline':0,'transfer':1,'retention':2}[body.phase],
+                           answers=body.answers,score=score,snapshot=dict(protocol=PROTOCOL,instrument='parallel-six-item-v1',questions=bank,presentation=presentation(user.id),
+                               curriculum_versions={str(unit.lesson_id):effective_unit(db,unit).version for unit in db.query(LearningUnit).all()},
+                               project_versions={project['slug']:project_version(project) for project in PROJECTS}))
     db.add(record);db.flush()
-    if body.phase=='transfer':
+    if body.phase in ('transfer','reassessment','retention'):
         from app.services.course_progress import check_and_issue_certificate
         project=next(p for p in PROJECTS if p['skill']==skill)
         course=db.query(Course).filter_by(slug=project['course']).first()
@@ -310,7 +343,11 @@ class AmendmentAnswer(StrictBody):
 def answer_amendment(amendment_id:int,body:AmendmentAnswer,user:User=Depends(get_current_user),db:Session=Depends(get_db)):
     item=db.get(LessonAmendment,amendment_id)
     if not item or item.status!='published':raise HTTPException(404,'Update not found')
-    visible_lesson(db,item.lesson_id,user)
+    lesson=visible_lesson(db,item.lesson_id,user)
+    unit=db.query(LearningUnit).filter_by(lesson_id=lesson.id).first()
+    from app.services.learning import content_hash
+    if item.base_version != (unit.version if unit else content_hash(lesson)):
+        raise HTTPException(409,'This update belongs to an older lesson version')
     question=item.question['question'];correct=body.selected==question['correct_index']
     db.add(AmendmentAttempt(user_id=user.id,amendment_id=item.id,selected=body.selected,correct=correct));db.commit()
     return dict(correct=correct,feedback=question['feedback'][body.selected])
@@ -329,10 +366,79 @@ def withdraw_amendment(amendment_id:int,body:AppealWork,user:User=Depends(get_cu
 @router.get('/status')
 def status(user:User=Depends(get_current_user),db:Session=Depends(get_db)):
     worker=db.get(EducationWorker,1);calibration=db.get(GraderCalibration,1)
-    return dict(worker_online=bool(worker and worker.heartbeat_at>datetime.utcnow()-timedelta(minutes=5)),
+    active=db.get(EducationJob,worker.current_job) if worker and worker.current_job else None
+    working=bool(active and active.status=='running' and active.started_at and active.started_at>datetime.utcnow()-timedelta(minutes=15))
+    return dict(worker_online=bool(worker and (working or worker.heartbeat_at>datetime.utcnow()-timedelta(minutes=5))),
                 worker_last_seen=worker.heartbeat_at if worker else None,
                 grading_calibrated=bool(calibration and calibration.passed and calibration.model_ids==list(MODELS) and calibration.checked_at>datetime.utcnow()-timedelta(days=30)),
                 calibration_date=calibration.checked_at if calibration else None,
                 queued=db.query(EducationJob).filter_by(user_id=user.id,status='queued').count(),
                 published_updates=db.query(LessonAmendment).filter_by(status='published').count(),
+                curriculum_jobs={state:db.query(EducationJob).filter_by(kind='curriculum',status=state).count() for state in ['queued','running','published','needs_review','failed']},
                 model_ids=list(MODELS))
+
+
+@router.get('/history')
+def history(user:User=Depends(get_current_user),db:Session=Depends(get_db)):
+    jobs=(db.query(EducationJob).filter(EducationJob.user_id==user.id,EducationJob.kind.in_(['practice','project']))
+          .order_by(EducationJob.id.desc()).limit(30).all())
+    return [dict(title=job.payload['title'],assessment=public_job(job)) for job in jobs]
+
+
+class ExperimentWork(StrictBody):
+    version:str=Field(min_length=1,max_length=64)
+    milestone:StrictInt=Field(ge=0,le=2)
+    artifact:dict
+
+
+@router.post('/projects/{slug}/experiment')
+def experiment(slug:str,body:ExperimentWork,user:User=Depends(get_current_user),db:Session=Depends(get_db)):
+    spec,course=project_visible(db,slug,user)
+    if body.version!=project_version(spec):raise HTTPException(409,'Reload the current project before running an experiment')
+    today=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)
+    if db.query(ProjectExperiment).filter(ProjectExperiment.user_id==user.id,ProjectExperiment.created_at>=today).count()>=100:
+        raise HTTPException(429,'Daily experiment limit reached; your previous results are saved')
+    try:result=benchmark(spec,body.milestone,body.artifact,preview=True)
+    except (ValueError,TypeError) as error:raise HTTPException(422,str(error))
+    record=ProjectExperiment(user_id=user.id,project_slug=slug,milestone=body.milestone,version=body.version,artifact=body.artifact,metrics=result)
+    db.add(record);db.commit()
+    return dict(id=record.id,benchmark=result,note='Recorded development experiment. Change one factor and compare before writing your report.')
+
+
+class DraftWork(StrictBody):
+    version:str=Field(min_length=1,max_length=64)
+    milestone:StrictInt=Field(ge=0,le=2)
+    artifact_text:str=Field(max_length=10000)
+    report:str=Field(max_length=30000)
+
+
+@router.put('/projects/{slug}/draft')
+def save_draft(slug:str,body:DraftWork,user:User=Depends(get_current_user),db:Session=Depends(get_db)):
+    spec,_=project_visible(db,slug,user)
+    if body.version!=project_version(spec):raise HTTPException(409,'Project changed; reload before saving this draft')
+    draft=db.query(ProjectDraft).filter_by(user_id=user.id,project_slug=slug,milestone=body.milestone,version=body.version).first()
+    if not draft:
+        draft=ProjectDraft(user_id=user.id,project_slug=slug,milestone=body.milestone,version=body.version);db.add(draft)
+    draft.artifact_text=body.artifact_text;draft.report=body.report;draft.updated_at=datetime.utcnow()
+    db.commit();return dict(saved=True,updated_at=draft.updated_at)
+
+
+class PromptExperimentWork(StrictBody):
+    version:str=Field(min_length=1,max_length=64)
+    baseline:str=Field(min_length=40,max_length=6000)
+    candidate:str=Field(min_length=40,max_length=6000)
+
+
+@router.post('/projects/{slug}/prompt-experiment',status_code=202)
+def prompt_experiment(slug:str,body:PromptExperimentWork,user:User=Depends(get_current_user),db:Session=Depends(get_db)):
+    spec,course=project_visible(db,slug,user)
+    if slug!='team-prompt-evaluation':raise HTTPException(404,'This project does not define a prompt experiment')
+    if body.version!=project_version(spec):raise HTTPException(409,'Reload the current project version')
+    if db.query(EducationJob).filter(EducationJob.user_id==user.id,EducationJob.status.in_(['queued','running'])).count()>=5:
+        raise HTTPException(429,'Wait for pending assessments before running more model experiments')
+    record=ProjectExperiment(user_id=user.id,project_slug=slug,milestone=1,version=body.version,
+                             artifact=dict(baseline=body.baseline,candidate=body.candidate),metrics=dict(status='queued'))
+    db.add(record);db.flush()
+    job=enqueue(db,key=f'prompt-experiment:{record.id}',kind='prompt_experiment',user_id=user.id,subject_id=record.id,version=body.version,
+                payload=dict(baseline=body.baseline,candidate=body.candidate,course_id=course.id,title='Measured prompt comparison'))
+    db.commit();return public_job(job)

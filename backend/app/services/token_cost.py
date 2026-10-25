@@ -3,7 +3,7 @@ recording usage on PromptAttempt rows.
 
 Running on a Claude subscription (see claude_client.py) means this is
 NOT a real metered dollar amount -- a subscription is flat-rate. The
-numbers below are Anthropic's real published per-token API pricing, used
+numbers below are illustrative reference rate assumptions, used
 here purely as an illustrative "what would this have cost on metered
 billing" reference so the UI's cost meter still means something (which
 prompts are relatively expensive) rather than showing a fake $0.00 that
@@ -21,7 +21,8 @@ DEFAULT_PRICE = {"input": 0.003, "output": 0.015}
 
 
 def estimate_cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
-    price = PRICE_PER_1K_TOKENS.get(model, DEFAULT_PRICE)
+    aliases={"haiku":"claude-haiku-4-5-20251001","sonnet":"claude-sonnet-4-6","opus":"claude-opus-4-7"}
+    price = PRICE_PER_1K_TOKENS.get(aliases.get(model,model), DEFAULT_PRICE)
     return round((input_tokens / 1000) * price["input"] + (output_tokens / 1000) * price["output"], 6)
 
 

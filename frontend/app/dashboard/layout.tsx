@@ -16,6 +16,8 @@ import type { UserRole } from "@/lib/types";
 // Courses (GET /dashboard/courses), so Courses is the sole content catalog.
 const NAV_LINKS: { href: string; label: string }[] = [
   { href: "/dashboard/learn", label: "Learning path" },
+  { href: "/dashboard/projects", label: "Projects" },
+  { href: "/dashboard/outcomes", label: "Learning evidence" },
   { href: "/dashboard/courses", label: "Courses" },
   { href: "/dashboard/daily-pulse", label: "Daily Pulse" },
   { href: "/dashboard/sandbox", label: "Sandbox" },
@@ -61,6 +63,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {link.label}
               </Link>
             ))}
+            {isInstructor && <Link href="/dashboard/instructor/review" className="text-brand">Review work</Link>}
             {isInstructor && (
               <Link
                 href="/dashboard/instructor/courses"

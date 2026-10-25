@@ -19,10 +19,11 @@ function roughTokenCount(text: string): number {
 
 export function TokenCostMeter({ prompt, model, maxOutputTokens }: { prompt: string; model: string; maxOutputTokens: number }) {
   const inputTokens = roughTokenCount(prompt);
-  const price = PRICE_PER_1K_TOKENS[model] ?? { input: 0.003, output: 0.015 };
+  const aliases: Record<string,string> = {haiku:"claude-haiku-4-5-20251001",sonnet:"claude-sonnet-4-6",opus:"claude-opus-4-7"};
+  const price = PRICE_PER_1K_TOKENS[aliases[model] ?? model] ?? { input: 0.003, output: 0.015 };
 
-  // Worst-case cost assumes the model uses its full max_output_tokens
-  // budget -- a ceiling, not a prediction, since real output length varies.
+  // This is a scenario, not an enforced cap: the connection does not apply
+  // max_output_tokens. Rates are illustrative, not a live pricing quote.
   const worstCaseCost = (inputTokens / 1000) * price.input + (maxOutputTokens / 1000) * price.output;
 
   return (
@@ -32,7 +33,7 @@ export function TokenCostMeter({ prompt, model, maxOutputTokens }: { prompt: str
       </span>
       <span className="text-ink">|</span>
       <span>
-        up to <span className="text-ink">${worstCaseCost.toFixed(5)}</span> equivalent (flat-rate subscription, not billed)
+        Illustration at {maxOutputTokens} output tokens: <span className="text-ink">${worstCaseCost.toFixed(5)}</span> equivalent (assumed rates; not billed)
       </span>
     </div>
   );

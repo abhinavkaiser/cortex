@@ -100,9 +100,9 @@ def restore_content(backup, published):
                 deck = old.execute('select title,cards from flashcard_decks where module_id=?', (module_id,)).fetchone()
                 if deck:
                     current.execute('update flashcard_decks set title=?,cards=? where module_id=?', (*deck, module_id))
-        existed = old.execute("select 1 from courses where slug='ai-technical-bridge'").fetchone()
-        if not existed:
-            current.execute("update courses set is_published=0 where slug='ai-technical-bridge'")
+        previous_courses={row[0] for row in old.execute('select slug from courses')}
+        for (slug,) in current.execute('select slug from courses').fetchall():
+            if slug not in previous_courses:current.execute('update courses set is_published=0 where slug=?',(slug,))
 
 
 def deploy(python, report):
@@ -130,8 +130,9 @@ def deploy(python, report):
     shutil.copy2(backup, validation)
     validation_env = {**os.environ, 'DATABASE_URL': 'sqlite:///' + str(validation)}
     run(str(python), 'scripts/publish_learning_path.py', '--apply', cwd=CHECKOUT / 'backend', env=validation_env)
+    run(str(python), 'scripts/publish_advanced_path.py', '--apply', cwd=CHECKOUT / 'backend', env=validation_env)
     # Exercise additive schemas and API contracts with an isolated in-memory DB.
-    run(str(python), '-m', 'pytest', 'tests/test_learning.py', '-q', cwd=CHECKOUT / 'backend', env={**os.environ, 'DATABASE_URL': 'sqlite://'})
+    run(str(python), '-m', 'pytest', 'tests', '-q', cwd=CHECKOUT / 'backend', env={**os.environ, 'DATABASE_URL': 'sqlite://'})
     published = {}
     with sqlite3.connect(backup) as old, sqlite3.connect(validation) as candidate:
         for slug, title, markdown, blocks, minutes in candidate.execute('select slug,title,content_markdown,content_blocks,estimated_minutes from lessons'):
@@ -145,6 +146,11 @@ def deploy(python, report):
     staged_next = APP / 'frontend' / ('.next-release-' + revision[:10])
     previous_next = backup_dir / 'next'
     switched = False
+    worker_was_present=Path('/etc/systemd/system/cortex-learning-worker.service').exists()
+    service_snapshots={}
+    for name in ['cortex-learning-worker.service','cortex-grader-calibration.service','cortex-grader-calibration.timer','cortex-curriculum-refresh.service','cortex-curriculum-refresh.timer']:
+        path=Path('/etc/systemd/system')/name
+        service_snapshots[name]=path.read_text() if path.exists() else None
     try:
         shutil.copytree(CHECKOUT / 'frontend', frontend_build, ignore=shutil.ignore_patterns('node_modules', '.next', '.env*', '*.tsbuildinfo'))
         for path in [build_dir, *build_dir.rglob('*')]:
@@ -160,12 +166,24 @@ def deploy(python, report):
         for path in [staged_next, *staged_next.rglob('*')]:
             if not path.is_symlink():
                 os.chown(path, user.pw_uid, user.pw_gid)
+        calibration_path=build_dir/'grading-calibration.json'
+        calibrated=subprocess.run(['runuser','-u','cortexapp','--',str(python),'scripts/validate_education_models.py','--output',str(calibration_path)],cwd=CHECKOUT/'backend',capture_output=True,text=True)
+        try:calibration=json.loads(calibration_path.read_text())
+        except (ValueError,FileNotFoundError):calibration=dict(passed=False)
+        notice('Education release calibration',calibration)
+        if calibrated.returncode or calibration.get('passed') is not True:
+            raise RuntimeError('Live grading calibration failed; production was not switched')
         notice('Learning release stage', dict(stage='production frontend build ready'))
+        worker_was_present=Path('/etc/systemd/system/cortex-learning-worker.service').exists()
+        if worker_was_present:run('systemctl','stop','cortex-learning-worker.service')
+
         run('pm2', 'stop', 'cortex-backend', env=PM2_ENV)
         switched = True
         git('checkout', '--detach', revision)
         run('runuser', '-u', 'cortexapp', '--', str(python), 'scripts/publish_learning_path.py', '--apply', cwd=APP / 'backend',
             env={**os.environ, 'DATABASE_URL': 'sqlite:////opt/cortex/backend/ai_academy.db'})
+        run('runuser','-u','cortexapp','--',str(python),'scripts/publish_advanced_path.py','--apply',cwd=APP/'backend',env={**os.environ,'DATABASE_URL':'sqlite:////opt/cortex/backend/ai_academy.db'})
+        run('runuser','-u','cortexapp','--',str(python),'scripts/validate_education_models.py','--input',str(calibration_path),'--record',cwd=APP/'backend',env={**os.environ,'DATABASE_URL':'sqlite:////opt/cortex/backend/ai_academy.db'})
         run('pm2', 'stop', 'cortex-frontend', env=PM2_ENV)
         if (APP / 'frontend/.next').exists():
             (APP / 'frontend/.next').rename(previous_next)
@@ -189,15 +207,32 @@ def deploy(python, report):
             raise RuntimeError('Release health checks did not pass')
         service = '[Unit]\nDescription=Cortex lesson source refresh\nAfter=network-online.target\n\n[Service]\nType=oneshot\nUser=cortexapp\nWorkingDirectory=/opt/cortex/backend\nExecStart=' + str(python) + ' scripts/refresh_curriculum_updates.py\nTimeoutStartSec=120\n'
         timer = '[Unit]\nDescription=Daily Cortex lesson source refresh\n\n[Timer]\nOnCalendar=*-*-* 06:15:00 UTC\nRandomizedDelaySec=300\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n'
+        worker_unit='[Unit]\nDescription=Cortex learning assessment worker\nAfter=network-online.target\n\n[Service]\nType=simple\nUser=cortexapp\nEnvironment=HOME=/home/cortexapp\nWorkingDirectory=/opt/cortex/backend\nExecStart='+str(python)+' scripts/run_learning_worker.py --watch\nRestart=on-failure\nRestartSec=10\nTimeoutStopSec=15\nKillMode=control-group\n\n[Install]\nWantedBy=multi-user.target\n'
+        calibration_unit='[Unit]\nDescription=Cortex grading calibration controls\nAfter=network-online.target\n\n[Service]\nType=oneshot\nUser=cortexapp\nEnvironment=HOME=/home/cortexapp\nWorkingDirectory=/opt/cortex/backend\nExecStart='+str(python)+' scripts/validate_education_models.py --record\nTimeoutStartSec=1200\n'
+        calibration_timer='[Unit]\nDescription=Daily Cortex grading calibration\n\n[Timer]\nOnCalendar=*-*-* 05:30:00 UTC\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n'
+        Path('/etc/systemd/system/cortex-learning-worker.service').write_text(worker_unit)
+        Path('/etc/systemd/system/cortex-grader-calibration.service').write_text(calibration_unit)
+        Path('/etc/systemd/system/cortex-grader-calibration.timer').write_text(calibration_timer)
         Path('/etc/systemd/system/cortex-curriculum-refresh.service').write_text(service)
         Path('/etc/systemd/system/cortex-curriculum-refresh.timer').write_text(timer)
         run('systemctl', 'daemon-reload')
+        run('systemctl','enable','--now','cortex-learning-worker.service','cortex-grader-calibration.timer')
         run('systemctl', 'enable', '--now', 'cortex-curriculum-refresh.timer')
         run('systemctl', 'start', '--no-block', 'cortex-curriculum-refresh.service')
-        notice('Learning release deployed', dict(revision=revision, backup=str(backup), lesson_records_changed=len(published),
+        run('systemctl','is-active','cortex-learning-worker.service')
+        notice('Learning release deployed', dict(grading_calibrated=True,worker='active',revision=revision, backup=str(backup), lesson_records_changed=len(published),
                                                 health='ok', source_timer='cortex-curriculum-refresh.timer'))
     except Exception:
         if switched:
+            if Path('/etc/systemd/system/cortex-learning-worker.service').exists():
+                subprocess.run(['systemctl','stop','cortex-learning-worker.service'],capture_output=True)
+            for name,previous in service_snapshots.items():
+                path=Path('/etc/systemd/system')/name
+                if previous is None:
+                    subprocess.run(['systemctl','disable','--now',name],capture_output=True)
+                    path.unlink(missing_ok=True)
+                else:path.write_text(previous)
+            run('systemctl','daemon-reload')
             run('pm2', 'stop', 'cortex-backend', env=PM2_ENV)
             run('pm2', 'stop', 'cortex-frontend', env=PM2_ENV)
             restore_content(backup, published)
@@ -209,6 +244,7 @@ def deploy(python, report):
                 previous_next.rename(APP / 'frontend/.next')
             run('pm2', 'restart', 'cortex-backend', env=PM2_ENV)
             run('pm2', 'restart', 'cortex-frontend', env=PM2_ENV)
+            if worker_was_present:run('systemctl','restart','cortex-learning-worker.service')
             notice('Learning release rollback', dict(revision=report['revision'], learner_data='preserved'))
         raise
     finally:

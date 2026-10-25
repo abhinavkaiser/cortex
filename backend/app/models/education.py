@@ -121,3 +121,28 @@ class AmendmentAttempt(Base):
     selected: Mapped[int]
     correct: Mapped[bool] = mapped_column(Boolean)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ProjectExperiment(Base):
+    __tablename__ = 'project_experiments'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), index=True)
+    project_slug: Mapped[str] = mapped_column(String(150))
+    milestone: Mapped[int]
+    version: Mapped[str] = mapped_column(String(64))
+    artifact: Mapped[dict] = mapped_column(JSON)
+    metrics: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ProjectDraft(Base):
+    __tablename__ = 'project_drafts'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), index=True)
+    project_slug: Mapped[str] = mapped_column(String(150))
+    milestone: Mapped[int]
+    version: Mapped[str] = mapped_column(String(64))
+    artifact_text: Mapped[str] = mapped_column(Text)
+    report: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    __table_args__ = (UniqueConstraint('user_id','project_slug','milestone','version',name='uq_project_draft'),)

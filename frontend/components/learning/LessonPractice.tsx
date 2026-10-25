@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { studio, type Assessment } from "@/lib/studio";
+import { AssessmentFeedback } from "./AssessmentFeedback";
 import { api } from "@/lib/api";
 import type { LearningUnit } from "@/lib/learning";
 
@@ -13,6 +15,17 @@ export function LessonPractice({ lessonId, unit, onSaved, onLearn }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [edited, setEdited] = useState(false);
+
+  const assessmentChanged = useCallback((assessment: Assessment) => {
+    setResult(current => current && current.assessment?.id === assessment.id ? { ...current, assessment, practice_complete: current.score === 100 && assessment.passed && assessment.status === 'graded' } : current);
+    api.getLearningUnit(lessonId).then(next => { if (next) onSaved(next); }).catch(() => {});
+  }, [lessonId, onSaved]);
+
+  async function requestAssessment() {
+    if (!result) return;
+    try { const job = await studio.assessPractice(result.id); setResult({ ...result, assessment: job }); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Assessment could not be queued.'); }
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -53,7 +66,7 @@ export function LessonPractice({ lessonId, unit, onSaved, onLearn }: {
         <textarea id="practice-reflection" required minLength={40} maxLength={5000} rows={5} value={reflection}
           onChange={event => { setReflection(event.target.value); setEdited(true); }}
           className="mt-3 w-full rounded-lg border border-line bg-white p-3 text-sm" />
-        <p className="text-xs text-ink-muted">At least 40 characters. Saved to your account for revision. Your written explanation is self-reviewed, not automatically scored.</p>
+        <p className="text-xs text-ink-muted">At least 40 characters. Saved to your account for revision. Your explanation is assessed against the rubric by two AI graders. Feedback is saved; you can revise or request instructor review.</p>
       </div>
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       <button disabled={saving || unit.status === "changed_since_review" || answers.some(a => a < 0) || reflection.trim().length < 40}
@@ -63,11 +76,12 @@ export function LessonPractice({ lessonId, unit, onSaved, onLearn }: {
     </form>
     {result && <div className="mt-6 border-t border-line pt-5" aria-live="polite">
       <p className="font-medium">Last saved decision score: {result.score}%{edited ? " · You have unsaved changes" : ""}</p>
-      <p className="mt-1 text-sm text-ink-muted">{unit.best_score === 100 ? "Decision practice completed. Review your explanation against the criteria below." : "Correct the missed decisions and submit again. Use the explanation to understand why."}</p>
-      <h3 className="mt-4 font-semibold">Compare your reasoning</h3>
+      <p className="mt-1 text-sm text-ink-muted">{unit.mastered ? "Current practice requirements met. Review your feedback and reasoning below." : "Correct missed decisions and use the rubric feedback to improve your reasoning."}</p>
+      {result.assessment ? <AssessmentFeedback job={result.assessment} onChange={assessmentChanged} /> : <button onClick={requestAssessment} className="mt-3 text-sm text-brand underline">Assess this saved explanation</button>}
+      <h3 className="mt-4 font-semibold">Worked reference</h3>
       <p className="mt-2 text-sm leading-relaxed">{result.reference}</p>
       <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">{result.rubric.map(item => <li key={item}>{item}</li>)}</ul>
-      <p className="mt-3 text-xs text-ink-muted">This is guided practice with retries. It does not independently establish mastery.</p>
+      <p className="mt-3 text-xs text-ink-muted">Decision answers, rubric feedback and later transfer checks measure different parts of your learning.</p>
     </div>}
   </section>;
 }

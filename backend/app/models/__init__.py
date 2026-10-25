@@ -41,3 +41,5 @@ from app.models.education import (AssessmentAppeal, EducationJob, EducationWorke
 from app.models.education import GraderCalibration  # noqa: F401
 from app.models.education import LearningStudyAssignment  # noqa: F401
 from app.models.education import AmendmentAttempt  # noqa: F401
+from app.models.education import ProjectExperiment  # noqa: F401
+from app.models.education import ProjectDraft  # noqa: F401

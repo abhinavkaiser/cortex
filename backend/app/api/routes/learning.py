@@ -76,6 +76,9 @@ def submit(lesson_id: int, body: PracticeSubmission, user: User = Depends(get_cu
         raise HTTPException(422, "Select one valid answer for each task")
     if len(body.reflection.strip()) < 40:
         raise HTTPException(422, "Explain your decision in at least 40 characters")
+    from app.models.education import EducationJob
+    if db.query(EducationJob).filter(EducationJob.user_id == user.id, EducationJob.status.in_(['queued', 'running'])).count() >= 5:
+        raise HTTPException(429, 'Five assessments are pending. Wait for feedback before submitting more work.')
     score = round(100 * sum(a == q["correct_index"] for a, q in zip(body.answers, questions)) / len(questions))
     attempt = PracticeAttempt(user_id=user.id, lesson_id=lesson_id, version=unit.version,
                               answers=body.answers, reflection=body.reflection.strip(), score=score)

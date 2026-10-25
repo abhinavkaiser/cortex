@@ -67,12 +67,15 @@ def generate_and_evaluate(db: Session, track_slug: str, pulse_date: date | None 
     if not track:
         raise ValueError(f"Unknown track slug: {track_slug}")
 
+    existing=db.query(DailyPulse).filter_by(track_id=track.id,pulse_date=pulse_date,status=PulseStatus.PUBLISHED).first()
+    if existing:return existing
     articles = fetch_recent_articles()
     if not articles:
         raise RuntimeError("No articles could be fetched from any configured RSS feed -- nothing to generate a pulse from.")
 
     generation = claude_client.generate(
         _build_prompt(articles, track_slug),
+        model="sonnet",
         temperature=0.4,  # low-ish: this is factual digest content, not creative writing
         response_schema=PULSE_SCHEMA,
     )
@@ -86,7 +89,7 @@ def generate_and_evaluate(db: Session, track_slug: str, pulse_date: date | None 
         status, eval_score, eval_notes = PulseStatus.FLAGGED, 0.0, f"Deterministic check failed: {det_failure}"
     else:
         judged = evals.score_with_llm_judge(
-            _source_articles_text(articles), track.name, parsed["summary"], parsed["sandbox_exercise"], parsed["quiz_question"], parsed["quiz_choices"]
+            _source_articles_text(articles), track.name, parsed["summary"], parsed["sandbox_exercise"], parsed["quiz_question"], parsed["quiz_choices"], parsed["quiz_correct_index"]
         )
         status = PulseStatus.PUBLISHED if judged.passed else PulseStatus.FLAGGED
         eval_score, eval_notes = judged.score, judged.notes
@@ -103,7 +106,7 @@ def generate_and_evaluate(db: Session, track_slug: str, pulse_date: date | None 
         status=status,
         eval_score=eval_score,
         eval_notes=eval_notes,
-        generation_model=settings.claude_model,
+        generation_model="sonnet",
     )
     db.add(pulse)
     db.commit()
