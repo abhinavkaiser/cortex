@@ -35,6 +35,8 @@ with tempfile.TemporaryDirectory(prefix='cortex-curriculum-check-') as folder:
                     unit=db.query(LearningUnit).filter_by(lesson_id=job.subject_id).first()
                     if unit:report['served_update_question']=len(effective_unit(db,unit).exercise['questions'])>len(unit.exercise['questions'])
                     reports.append(report);break
-            except Exception as error:report.update(approved=False,error_type=type(error).__name__)
+            except Exception as error:
+                report.update(approved=False,error_type=type(error).__name__)
+                if hasattr(error,'errors'):report['validation']=[{key:item[key] for key in ['loc','type','msg']} for item in error.errors(include_input=False)]
             reports.append(report)
     print(json.dumps(dict(passed=any(row.get('approved') for row in reports),queued=queued,results=reports,production_writes=False)))

@@ -22,7 +22,7 @@ MODEL_ALIASES = {"haiku": settings.codex_fast_model, "sonnet": settings.codex_mo
                  "opus": settings.codex_model}
 
 
-def _spawn_claude(prompt: str, model: str | None, system_prompt: str = DEFAULT_SYSTEM_PROMPT, timeout: int = 250, structured_envelope: bool = False):
+def _spawn_claude(prompt: str, model: str | None, system_prompt: str = DEFAULT_SYSTEM_PROMPT, timeout: int = 250, structured_envelope: bool = False, response_schema: dict | None = None):
     """Compatibility entry point; only Codex is invoked. No Claude fallback."""
     requested = MODEL_ALIASES.get(model, model) if model else settings.codex_model
     allowed = {settings.codex_fast_model, settings.codex_model}
@@ -44,6 +44,10 @@ def _spawn_claude(prompt: str, model: str | None, system_prompt: str = DEFAULT_S
                 "-c", "features.codex_hooks=false", "-c", "features.memory_tool=false",
                 "-c", "features.skill_search=false", "-c", "features.skip_host_skill_discovery=true",
                 "-c", "project_doc_max_bytes=0", "-"]
+        if response_schema is not None:
+            schema_path=Path(isolated)/'response.schema.json'
+            schema_path.write_text(json.dumps(response_schema))
+            args[-1:-1]=['--output-schema',str(schema_path)]
         result = subprocess.run(args, input=prompt, capture_output=True, text=True, timeout=timeout, cwd=isolated)
     # Never expose provider output (which can include account identifiers or data)
     # as a public API exception. Calibration receives a bounded diagnostic category.

@@ -470,3 +470,17 @@ def test_amendment_snapshot_is_hash_checked_and_keeps_exact_evidence():
     assert build_amendment(payload,writer=writer)['approved']
     payload['source_snapshot']['text']+=' Tampered'
     with pytest.raises(ValueError,match='snapshot'):build_amendment(payload,writer=writer)
+
+
+def test_codex_native_schema_is_passed_in_an_isolated_file(monkeypatch):
+    from types import SimpleNamespace
+    from pathlib import Path
+    from app.services import claude_client
+    schema=dict(type='object',properties=dict(value=dict(type='integer')),required=['value'],additionalProperties=False)
+    def process(args,**kwargs):
+        target=Path(args[args.index('--output-schema')+1])
+        assert target.parent==Path(kwargs['cwd']) and json.loads(target.read_text())==schema
+        events=[dict(type='item.completed',item=dict(type='agent_message',text='{"value":1}')),dict(type='turn.completed')]
+        return SimpleNamespace(returncode=0,stdout='\n'.join(map(json.dumps,events)),stderr='')
+    monkeypatch.setattr(claude_client.subprocess,'run',process)
+    assert json.loads(claude_client._spawn_claude('Return value 1','sonnet',response_schema=schema))=={'value':1}
