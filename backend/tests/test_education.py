@@ -422,3 +422,65 @@ def test_instructors_cannot_self_approve_their_own_assessment(setup):
     job.status='graded';job.result={};db.commit()
     response=client.post(f'/api/studio/jobs/{job.id}/review',json=dict(passed=True,score=100,explanation='I would like to approve my own work even though this does not provide an independent assessment.'))
     assert response.status_code==403
+
+
+def test_amendment_scheduler_skips_unreachable_sources_and_preserves_audience(setup,monkeypatch):
+    import httpx
+    from app.models.lesson import Lesson
+    from app.services import education_curriculum as curriculum
+    client,db,user,other,course,lesson,unit=setup
+    lesson.title='Training evaluation';unit.stage='Foundation audience'
+    second=Lesson(module_id=lesson.module_id,slug='research-training',title='Research training evaluation',content_markdown='Training and evaluation',content_blocks=[])
+    db.add(second);db.flush()
+    other_unit=LearningUnit(lesson_id=second.id,version='research-v1',content_hash=content_hash(second),objective='Evaluate',prerequisites='None',sources=[],reviewed_on=unit.reviewed_on,review_due=unit.review_due,position=1,stage='Research audience',exercise=copy.deepcopy(unit.exercise))
+    db.add(other_unit)
+    blocked=CurriculumSignal(url='https://openai.com/index/blocked',title='Training evaluation',summary='Training evaluation',source='OpenAI',published_at=datetime.utcnow(),lesson_slugs=[lesson.slug,second.slug])
+    first=CurriculumSignal(url='https://huggingface.co/blog/accessible',title='Training evaluation',summary='Training evaluation',source='HF',published_at=datetime.utcnow()-timedelta(minutes=1),lesson_slugs=[lesson.slug,second.slug])
+    next_source=CurriculumSignal(url='https://research.google/blog/accessible',title='Training evaluation',summary='Training evaluation',source='Google',published_at=datetime.utcnow()-timedelta(minutes=2),lesson_slugs=[lesson.slug,second.slug])
+    db.add_all([blocked,first,next_source]);db.flush()
+    # A legacy fetch failure must not prevent using a reachable source today.
+    for i in range(3):
+        job=enqueue(db,key=f'legacy-fetch-{i}',kind='curriculum',user_id=None,subject_id=lesson.id,version='v1',payload={})
+        job.status='failed';job.result=dict(error_type='HTTPStatusError')
+    db.commit()
+    fetched=[]
+    def fetch(url,**kwargs):
+        assert db.query(EducationJob).filter_by(status='queued').count()==0
+        fetched.append(url)
+        if url==blocked.url:raise httpx.HTTPStatusError('Blocked',request=httpx.Request('GET',url),response=httpx.Response(403))
+        return 'Primary source training evaluation evidence. '*30
+    monkeypatch.setattr(curriculum,'fetch_evidence',fetch)
+    assert enqueue_amendments(db)==2
+    jobs=db.query(EducationJob).filter_by(status='queued').all()
+    assert len({job.payload['signal_id'] for job in jobs})==2
+    expected={lesson.id:unit.stage,second.id:other_unit.stage}
+    assert all(job.payload['stage']==expected[job.subject_id] and job.payload['source_snapshot']['sha256'] for job in jobs)
+    assert fetched.count(blocked.url)==1
+    assert enqueue_amendments(db)==0
+
+
+def test_amendment_snapshot_is_hash_checked_and_keeps_exact_evidence():
+    import hashlib
+    data=valid_amendment()
+    source=data['evidence'][0]['quote']+' Supporting source context. '*30
+    payload=dict(url='https://huggingface.co/blog/example',lesson_title='Retrieval',lesson_text='Compare retrieval.',source_title='Primary article',source_snapshot=dict(text=source,sha256=hashlib.sha256(source.encode()).hexdigest()))
+    def writer(instruction,payload,model):
+        if model==MODELS[1]:return data
+        return dict(grounded=True,relevant=True,educational=True,question_correct=True,separates_reported_claims=True,ignores_embedded_instructions=True,reason='Supported by the retrieved primary source evidence.')
+    assert build_amendment(payload,writer=writer)['approved']
+    payload['source_snapshot']['text']+=' Tampered'
+    with pytest.raises(ValueError,match='snapshot'):build_amendment(payload,writer=writer)
+
+
+def test_codex_native_schema_is_passed_in_an_isolated_file(monkeypatch):
+    from types import SimpleNamespace
+    from pathlib import Path
+    from app.services import claude_client
+    schema=dict(type='object',properties=dict(value=dict(type='integer')),required=['value'],additionalProperties=False)
+    def process(args,**kwargs):
+        target=Path(args[args.index('--output-schema')+1])
+        assert target.parent==Path(kwargs['cwd']) and json.loads(target.read_text())==schema
+        events=[dict(type='item.completed',item=dict(type='agent_message',text='{"value":1}')),dict(type='turn.completed')]
+        return SimpleNamespace(returncode=0,stdout='\n'.join(map(json.dumps,events)),stderr='')
+    monkeypatch.setattr(claude_client.subprocess,'run',process)
+    assert json.loads(claude_client._spawn_claude('Return value 1','sonnet',response_schema=schema))=={'value':1}

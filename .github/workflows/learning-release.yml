@@ -3,6 +3,14 @@ name: Learning curriculum release
 on:
   workflow_dispatch:
     inputs:
+      verify_curriculum:
+        description: Verify source generation on a disposable database copy
+        type: boolean
+        default: false
+      diagnose_curriculum:
+        description: Inspect public-source curriculum fetch failures
+        type: boolean
+        default: false
       diagnose_codex:
         description: Inspect constrained Codex calls with a fixed non-student prompt
         type: boolean
@@ -32,6 +40,12 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Verify source generation
+        if: ${{ inputs.verify_curriculum }}
+        run: python3 .github/scripts/learning_release.py --verify-curriculum
+      - name: Diagnose source updates
+        if: ${{ inputs.diagnose_curriculum }}
+        run: python3 .github/scripts/learning_release.py --diagnose-curriculum
       - name: Diagnose Codex runtime
         if: ${{ inputs.diagnose_codex }}
         run: python3 .github/scripts/learning_release.py --diagnose
@@ -39,11 +53,11 @@ jobs:
         if: ${{ inputs.prepare_codex }}
         run: python3 .github/scripts/setup_codex_runtime.py
       - name: Inspect production and content references
-        if: ${{ !inputs.deploy && !inputs.prepare_codex && !inputs.diagnose_codex }}
+        if: ${{ !inputs.deploy && !inputs.prepare_codex && !inputs.diagnose_codex && !inputs.diagnose_curriculum && !inputs.verify_curriculum }}
         run: python3 .github/scripts/learning_release.py
       - name: Calibrate constrained education models
-        if: ${{ !inputs.deploy && !inputs.prepare_codex && !inputs.diagnose_codex && github.ref == 'refs/heads/codex/complete-learning' }}
+        if: ${{ !inputs.deploy && !inputs.prepare_codex && !inputs.diagnose_codex && !inputs.diagnose_curriculum && !inputs.verify_curriculum && github.ref == 'refs/heads/codex/complete-learning' }}
         run: python3 .github/scripts/learning_release.py --calibrate
       - name: Deploy reviewed release
-        if: ${{ inputs.deploy && !inputs.prepare_codex && !inputs.diagnose_codex && github.ref == 'refs/heads/main' }}
+        if: ${{ inputs.deploy && !inputs.prepare_codex && !inputs.diagnose_codex && !inputs.diagnose_curriculum && !inputs.verify_curriculum && github.ref == 'refs/heads/main' }}
         run: python3 .github/scripts/learning_release.py --deploy

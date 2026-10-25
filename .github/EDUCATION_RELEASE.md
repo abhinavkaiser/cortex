@@ -59,7 +59,7 @@ experiments run through the constrained model adapter.
 
 ## Verification and limits
 
-Local verification: 48 backend tests, TypeScript and optimized Next.js build passed.
+Local verification: 51 backend tests, TypeScript and optimized Next.js build passed.
 Disposable-database publication, idempotence, rollback and retained learner-record
 checks passed. Browser validation passed registration, all 21 path units, the
 pending-grade completion gate, six project listings, a baseline check, draft
@@ -82,3 +82,27 @@ The six-item parallel checks are preliminary instruments, not standardized abili
 scores. Genuine student engagement and durable learning require real follow-up;
 see [pilot protocol](../docs/learning-pilot.md). No synthetic learner results are
 inserted into production evidence or claimed as educational impact.
+
+## Source availability and runtime publication
+
+The first subscription release deployed successfully in
+[run 40184089435](https://github.com/abhinavkaiser/cortex/actions/runs/40184089435).
+Read-only production API and browser checks confirmed 21 units, six projects,
+working subscription completion, calibrated grading and an active worker.
+
+Its first update attempts encountered HTTP 403 from one publisher. Scheduling now
+checks evidence before model work, skips inaccessible sources, uses distinct articles
+and lessons, preserves the correct audience and prioritizes explicit topic matches.
+Snapshots retain source text, retrieval time and SHA-256 for exact quote validation.
+Network work finishes before queue writes. Generation and review use native Codex
+JSON schemas plus the existing local factual, quote, question and version checks.
+Failed transport requests do not consume the three daily model-generation slots.
+
+[Real source verification](https://github.com/abhinavkaiser/cortex/actions/runs/40185001086)
+passed on a private disposable database copy: one relevant teaching addition,
+five verified source quotes, separate factual/educational approval and an added
+served practice question. No production learner records were written by this check.
+
+The **Refresh public daily learning content** workflow can run the existing Daily
+Pulse job on demand, without changing the normal daily schedule. Publication still
+requires the factual and answer-key checks; a failed item stays unpublished.

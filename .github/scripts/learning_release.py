@@ -205,7 +205,7 @@ def deploy(python, report):
             time.sleep(2)
         if not healthy:
             raise RuntimeError('Release health checks did not pass')
-        service = '[Unit]\nDescription=Cortex lesson source refresh\nAfter=network-online.target\n\n[Service]\nType=oneshot\nUser=cortexapp\nWorkingDirectory=/opt/cortex/backend\nExecStart=' + str(python) + ' scripts/refresh_curriculum_updates.py\nTimeoutStartSec=120\n'
+        service = '[Unit]\nDescription=Cortex lesson source refresh\nAfter=network-online.target\n\n[Service]\nType=oneshot\nUser=cortexapp\nWorkingDirectory=/opt/cortex/backend\nExecStart=' + str(python) + ' scripts/refresh_curriculum_updates.py\nTimeoutStartSec=240\n'
         timer = '[Unit]\nDescription=Daily Cortex lesson source refresh\n\n[Timer]\nOnCalendar=*-*-* 06:15:00 UTC\nRandomizedDelaySec=300\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n'
         worker_unit='[Unit]\nDescription=Cortex learning assessment worker\nAfter=network-online.target\n\n[Service]\nType=simple\nUser=cortexapp\nEnvironment=HOME=/home/cortexapp\nWorkingDirectory=/opt/cortex/backend\nExecStart='+str(python)+' scripts/run_learning_worker.py --watch\nRestart=on-failure\nRestartSec=10\nTimeoutStopSec=15\nKillMode=control-group\n\n[Install]\nWantedBy=multi-user.target\n'
         calibration_unit='[Unit]\nDescription=Cortex grading calibration controls\nAfter=network-online.target\n\n[Service]\nType=oneshot\nUser=cortexapp\nEnvironment=HOME=/home/cortexapp\nWorkingDirectory=/opt/cortex/backend\nExecStart='+str(python)+' scripts/validate_education_models.py --record\nTimeoutStartSec=1200\n'
@@ -255,12 +255,20 @@ def deploy(python, report):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--verify-curriculum', action='store_true')
+    parser.add_argument('--diagnose-curriculum', action='store_true')
     parser.add_argument('--diagnose', action='store_true')
     parser.add_argument('--deploy', action='store_true')
     parser.add_argument('--calibrate', action='store_true')
     args = parser.parse_args()
     python, report = preflight()
-    if args.diagnose:
+    if args.verify_curriculum:
+        result=run('runuser','-u','cortexapp','--',str(python),'scripts/verify_curriculum_runtime.py',cwd=CHECKOUT/'backend')
+        notice('Curriculum runtime verification',json.loads(result))
+    elif args.diagnose_curriculum:
+        result=run('runuser','-u','cortexapp','--',str(python),'scripts/probe_curriculum_runtime.py',cwd=CHECKOUT/'backend')
+        notice('Curriculum update diagnostic',json.loads(result))
+    elif args.diagnose:
         result=run('runuser','-u','cortexapp','--',str(python),'scripts/probe_codex_runtime.py',cwd=CHECKOUT/'backend')
         notice('Codex runtime diagnostic',json.loads(result))
     elif args.calibrate:
