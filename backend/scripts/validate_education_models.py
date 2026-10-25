@@ -29,7 +29,7 @@ def calibrate():
         except Exception as error:
             message=str(error).lower()
             code='authentication' if any(word in message for word in ['not logged in','authentication','oauth','credentials','api key']) else 'model_unavailable' if 'model' in message and any(word in message for word in ['not found','not available','not exist','access']) else 'unsupported_flag' if any(word in message for word in ['unknown option','unknown argument','invalid value','invalid argument']) else 'permission' if 'permission' in message else 'capacity' if any(word in message for word in ['rate limit','usage limit','credit balance','overloaded']) else 'unanchored_evidence' if 'anchored' in message else 'invalid_response'
-            results.append(dict(control=name,correct=False,error_type=type(error).__name__,error_code=code))
+            results.append(dict(control=name,correct=False,error_type=type(error).__name__,error_code=code,signals={word:word in message for word in ['eacces','permission denied','401','403','expired','refresh','invalid api key','unknown option','login','token']}))
     return dict(passed=all(item['correct'] for item in results),models=list(MODELS),checked_at=datetime.utcnow().isoformat(),results=results)
 
 
