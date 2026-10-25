@@ -255,11 +255,15 @@ def deploy(python, report):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--diagnose', action='store_true')
     parser.add_argument('--deploy', action='store_true')
     parser.add_argument('--calibrate', action='store_true')
     args = parser.parse_args()
     python, report = preflight()
-    if args.calibrate:
+    if args.diagnose:
+        result=run('runuser','-u','cortexapp','--',str(python),'scripts/probe_codex_runtime.py',cwd=CHECKOUT/'backend')
+        notice('Codex runtime diagnostic',json.loads(result))
+    elif args.calibrate:
         calibration = subprocess.run(['runuser', '-u', 'cortexapp', '--', str(python), 'scripts/validate_education_models.py'], cwd=CHECKOUT / 'backend', capture_output=True, text=True)
         try: result = json.loads(calibration.stdout)
         except ValueError: result = dict(passed=False, error='Calibration process failed before reporting')
