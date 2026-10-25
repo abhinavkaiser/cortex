@@ -445,6 +445,7 @@ def test_amendment_scheduler_skips_unreachable_sources_and_preserves_audience(se
     db.commit()
     fetched=[]
     def fetch(url,**kwargs):
+        assert db.query(EducationJob).filter_by(status='queued').count()==0
         fetched.append(url)
         if url==blocked.url:raise httpx.HTTPStatusError('Blocked',request=httpx.Request('GET',url),response=httpx.Response(403))
         return 'Primary source training evaluation evidence. '*30

@@ -196,7 +196,7 @@ def enqueue_amendments(db, limit=3):
             candidates.append((count,-overlap,-signal.published_at.timestamp(),lesson.id,signal,lesson,base,key))
     selected={job.subject_id for job in today_jobs if not (job.status=='failed' and job.result.get('error_type') in transport_errors)}
     selected_signals={job.payload['signal_id'] for job in today_jobs if 'signal_id' in job.payload}
-    added=0
+    added=0;chosen=[]
     snapshots={};unavailable=set();host_failures={};fetches=0
     for _,_,_,_,signal,lesson,base,key in sorted(candidates,key=lambda item:item[:4]):
         if lesson.id in selected or signal.id in selected_signals:continue
@@ -212,10 +212,13 @@ def enqueue_amendments(db, limit=3):
                 unavailable.add(signal.id);host_failures[host]=host_failures.get(host,0)+1
                 continue
         unit=db.query(LearningUnit).filter_by(lesson_id=lesson.id).first()
-        enqueue(db,key=key,kind='curriculum',user_id=None,subject_id=lesson.id,version=base,
+        chosen.append(dict(key=key,kind='curriculum',user_id=None,subject_id=lesson.id,version=base,
                 payload=dict(signal_id=signal.id,url=signal.url,source_snapshot=snapshots[signal.id],source_title=signal.title,lesson_title=lesson.title,
-                             lesson_text=lesson.content_markdown[:20000],stage=unit.stage if unit else lesson.module.course.title,content_hash=content_hash(lesson),course_id=lesson.course_id))
+                             lesson_text=lesson.content_markdown[:20000],stage=unit.stage if unit else lesson.module.course.title,content_hash=content_hash(lesson),course_id=lesson.course_id)))
         selected.add(lesson.id);selected_signals.add(signal.id);added+=1
         if added>=remaining:break
+    # Complete network work before the first write/flush, so a slow publisher
+    # cannot hold a SQLite write lock while students save their work.
+    for item in chosen:enqueue(db,**item)
     db.commit()
     return added
