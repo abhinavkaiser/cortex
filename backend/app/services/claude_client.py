@@ -23,6 +23,7 @@ import json
 import re
 import subprocess
 import time
+import tempfile
 from dataclasses import dataclass
 
 from app.core.config import get_settings
@@ -34,17 +35,16 @@ DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant. Answer the request directl
 
 
 def _spawn_claude(prompt: str, model: str | None, system_prompt: str = DEFAULT_SYSTEM_PROMPT, timeout: int = 250) -> str:
-    args = [CLAUDE_BIN, "--print", "--dangerously-skip-permissions", "--system-prompt", system_prompt]
+    args = [CLAUDE_BIN, "--print", "--tools", "", "--strict-mcp-config",
+            "--setting-sources", "", "--disable-slash-commands", "--no-session-persistence",
+            "--permission-mode", "dontAsk", "--system-prompt", system_prompt]
     if model:
         args += ["--model", model]
 
-    result = subprocess.run(
-        args,
-        input=prompt,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
+    with tempfile.TemporaryDirectory(prefix="cortex-model-") as isolated:
+        result = subprocess.run(
+            args, input=prompt, capture_output=True, text=True, timeout=timeout, cwd=isolated,
+        )
     if result.returncode != 0:
         detail = (result.stderr or result.stdout or f"claude exited with code {result.returncode}").strip()
         raise RuntimeError(f"Claude CLI call failed: {detail[:500]}")

@@ -2,7 +2,7 @@ name: Learning curriculum release
 
 on:
   push:
-    branches: [codex/interactive-learning]
+    branches: [codex/interactive-learning, codex/complete-learning]
     paths: [.github/workflows/learning-release.yml, .github/scripts/learning_release.py, backend/content/source_checks.json]
   workflow_dispatch:
     inputs:

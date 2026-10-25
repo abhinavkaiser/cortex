@@ -229,6 +229,8 @@ if __name__ == '__main__':
             notice('Learning release failure', dict(error=str(error), kind=type(error).__name__))
             raise
     else:
+        help_text = run('runuser', '-u', 'cortexapp', '--', 'claude', '--help')
+        notice('Education model controls', {flag: flag in help_text for flag in ['--tools', '--strict-mcp-config', '--setting-sources', '--no-session-persistence', '--disable-slash-commands', '--permission-mode']})
         references = []
         for url in json.loads((CHECKOUT / 'backend/content/source_checks.json').read_text()):
             try:
