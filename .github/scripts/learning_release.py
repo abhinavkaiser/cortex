@@ -236,6 +236,7 @@ if __name__ == '__main__':
             notice('Learning release failure', dict(error=str(error), kind=type(error).__name__))
             raise
     else:
+        notice('Education authentication repair',json.loads(run('python3',str(CHECKOUT / '.github/scripts/refresh_cortex_auth.py'))))
         auth_reports=[]
         for flags in [[], ['--setting-sources','']]:
             auth=subprocess.run(['runuser','-u','cortexapp','--','claude',*flags,'auth','status','--json'],capture_output=True,text=True)
