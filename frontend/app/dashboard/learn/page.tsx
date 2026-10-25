@@ -16,7 +16,7 @@ export default function LearningPathPage() {
   return <main className="mx-auto max-w-3xl px-6 py-12">
     <p className="text-xs font-semibold uppercase tracking-wide text-brand">Your learning path</p>
     <h1 className="mt-2 text-3xl font-semibold">Build skills by doing</h1>
-    <p className="mt-3 text-ink-muted">Start with the AI foundation, build the technical bridge, then choose a project or the advanced ML and research path. Each unit includes a worked example, decisions to test, feedback and a written explanation to revise.</p>
+    <p className="mt-3 text-ink-muted">Start with the AI foundation, build the technical bridge, then choose a project, advanced ML and research, or the embeddings and LLM fine-tuning course. Each unit includes a worked example, decisions to test, feedback and a written explanation to revise.</p>
     {loading && <p className="mt-8">Loading your path…</p>}
     {error && <p role="alert" className="mt-6 text-red-700">{error}</p>}
     {!loading && !error && units.length === 0 && <p className="mt-8">The revised path has not been published yet. Browse the <Link href="/dashboard/courses" className="text-brand underline">course catalog</Link>.</p>}
@@ -34,6 +34,7 @@ export default function LearningPathPage() {
         </li>)}</ol>
       </section>)}
       <div className="mt-8 rounded-xl border border-brand/30 p-5"><h2 className="font-semibold">Put the skills to work</h2><p className="mt-2 text-sm">Choose engineering, practitioner, leadership, prompting, product or research. Each project includes experiments, three assessed milestones and a transfer check.</p><Link href="/dashboard/projects" className="mt-3 inline-block text-sm text-brand underline">Open specialization projects →</Link></div>
+      <section className="mt-8 rounded-xl border border-line p-5"><h2 className="font-semibold">Embeddings and LLM fine-tuning</h2><p className="mt-2 text-sm">Fourteen lessons take you through vector search, embedding adaptation, instruction data, SFT, LoRA/QLoRA, evaluation, DPO, distillation and deployment. Work through cases and calculations, then submit your reasoning for feedback. No GPU lab is required.</p><Link href="/dashboard/courses/embeddings-and-llm-fine-tuning" className="mt-3 inline-block text-sm text-brand underline">Open the course →</Link></section>
       <aside className="mt-8 rounded-xl border border-line p-5 text-sm">
         <h2 className="font-semibold">Keeping up with developments</h2>
         <p className="mt-2">Source announcements are checked daily. Supported, relevant changes can become versioned teaching additions after quote checks and a separate model review. New update tasks appear in affected lessons; source links alone do not count as course revisions.</p>

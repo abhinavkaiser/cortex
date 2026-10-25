@@ -34,6 +34,20 @@ TOPICS = {
     "advanced-representation-and-adaptation": ["adapter", "lora", "embedding", "fine-tuning"],
     "advanced-multimodal-evaluation": ["multimodal", "vision", "image", "audio", "video"],
     "advanced-paper-reproduction": ["research", "paper", "reproduction", "benchmark"],
+    "embedding-representations": ["embedding", "representation", "semantic search"],
+    "embedding-ingestion-chunking": ["chunking", "parsing", "retrieval"],
+    "embedding-vector-indexes": ["vector", "index", "hybrid search", "rerank"],
+    "embedding-evaluation-adaptation": ["embedding", "retrieval evaluation", "contrastive"],
+    "llm-adaptation-strategy": ["fine-tuning", "adaptation", "pretraining"],
+    "llm-training-data": ["dataset", "synthetic data", "contamination"],
+    "llm-chat-templates-masking": ["chat template", "tokenization", "loss masking"],
+    "llm-supervised-training": ["supervised fine-tuning", "sft", "training"],
+    "llm-lora-adapters": ["lora", "adapter", "low-rank"],
+    "llm-qlora-memory": ["qlora", "quantization", "quantized"],
+    "llm-finetuning-evaluation": ["evaluation", "benchmark", "regression"],
+    "llm-preference-optimization": ["dpo", "preference", "reward model"],
+    "llm-distillation": ["distillation", "teacher", "student model"],
+    "llm-adapter-deployment": ["inference", "serving", "deployment"],
 }
 
 

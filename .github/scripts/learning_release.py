@@ -131,6 +131,7 @@ def deploy(python, report):
     validation_env = {**os.environ, 'DATABASE_URL': 'sqlite:///' + str(validation)}
     run(str(python), 'scripts/publish_learning_path.py', '--apply', cwd=CHECKOUT / 'backend', env=validation_env)
     run(str(python), 'scripts/publish_advanced_path.py', '--apply', cwd=CHECKOUT / 'backend', env=validation_env)
+    run(str(python), 'scripts/publish_embeddings_path.py', '--apply', cwd=CHECKOUT / 'backend', env=validation_env)
     # Exercise additive schemas and API contracts with an isolated in-memory DB.
     run(str(python), '-m', 'pytest', 'tests', '-q', cwd=CHECKOUT / 'backend', env={**os.environ, 'DATABASE_URL': 'sqlite://'})
     published = {}
@@ -183,6 +184,7 @@ def deploy(python, report):
         run('runuser', '-u', 'cortexapp', '--', str(python), 'scripts/publish_learning_path.py', '--apply', cwd=APP / 'backend',
             env={**os.environ, 'DATABASE_URL': 'sqlite:////opt/cortex/backend/ai_academy.db'})
         run('runuser','-u','cortexapp','--',str(python),'scripts/publish_advanced_path.py','--apply',cwd=APP/'backend',env={**os.environ,'DATABASE_URL':'sqlite:////opt/cortex/backend/ai_academy.db'})
+        run('runuser','-u','cortexapp','--',str(python),'scripts/publish_embeddings_path.py','--apply',cwd=APP/'backend',env={**os.environ,'DATABASE_URL':'sqlite:////opt/cortex/backend/ai_academy.db'})
         run('runuser','-u','cortexapp','--',str(python),'scripts/validate_education_models.py','--input',str(calibration_path),'--record',cwd=APP/'backend',env={**os.environ,'DATABASE_URL':'sqlite:////opt/cortex/backend/ai_academy.db'})
         run('pm2', 'stop', 'cortex-frontend', env=PM2_ENV)
         if (APP / 'frontend/.next').exists():
