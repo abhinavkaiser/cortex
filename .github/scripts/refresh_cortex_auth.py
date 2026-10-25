@@ -32,7 +32,9 @@ def repair():
     backup=Path('/opt/cortex-backups')/('auth-expiry-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'))
     backup.mkdir(parents=True,mode=0o700);backup.chmod(0o700)
     shutil.copy2(path,backup/'credentials.json');(backup/'credentials.json').chmod(0o600)
-    oauth['expiresAt']=0
+    # Zero is interpreted by the official CLI as an inference-only token with
+    # no refresh schedule. A positive timestamp in the past triggers refresh.
+    oauth['expiresAt']=1
     user=pwd.getpwnam('cortexapp')
     staged=path.with_name('.credentials.refresh-pending')
     staged.write_text(json.dumps(data));staged.chmod(0o600);os.chown(staged,user.pw_uid,user.pw_gid);staged.replace(path)
