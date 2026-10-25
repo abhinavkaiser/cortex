@@ -255,12 +255,16 @@ def deploy(python, report):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--diagnose-curriculum', action='store_true')
     parser.add_argument('--diagnose', action='store_true')
     parser.add_argument('--deploy', action='store_true')
     parser.add_argument('--calibrate', action='store_true')
     args = parser.parse_args()
     python, report = preflight()
-    if args.diagnose:
+    if args.diagnose_curriculum:
+        result=run('runuser','-u','cortexapp','--',str(python),'scripts/probe_curriculum_runtime.py',cwd=CHECKOUT/'backend')
+        notice('Curriculum update diagnostic',json.loads(result))
+    elif args.diagnose:
         result=run('runuser','-u','cortexapp','--',str(python),'scripts/probe_codex_runtime.py',cwd=CHECKOUT/'backend')
         notice('Codex runtime diagnostic',json.loads(result))
     elif args.calibrate:
