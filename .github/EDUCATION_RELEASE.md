@@ -53,8 +53,14 @@ experiments run through the constrained model adapter.
 
 Local verification: 47 backend tests, TypeScript and optimized Next.js build passed.
 Disposable-database publication, idempotence, rollback and retained learner-record
-checks passed. Browser validation is recorded separately under workspace reports.
-Live model calibration and deployment remain blocked until account sign-in succeeds.
+checks passed. Browser validation passed registration, all 21 path units, the
+pending-grade completion gate, six project listings, a baseline check, draft
+autosave/reload, a recorded development experiment, outcomes and mobile layout.
+It did not simulate or validate model grading. Workspace reports retain the script
+and screenshots. [Server validation run](https://github.com/abhinavkaiser/cortex/actions/runs/40173684090)
+confirmed the production revision remains `5dda923` and all calibration calls fail
+with expired-login 401 responses. Live calibration and deployment remain blocked
+until account sign-in succeeds.
 
 Two models from one provider are fallible correlated reviewers, not independent
 accreditation. Source quote verification and a second review reduce unsupported
