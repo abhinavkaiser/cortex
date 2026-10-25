@@ -6,6 +6,7 @@ the underlying Module/Lesson tables but not the same API surface."""
 from datetime import datetime
 
 from pydantic import BaseModel
+from app.schemas.preparation import PreparationOut
 
 # A single answer's value: an int (multiple_choice/true_false selected
 # index), a list[int] (multi_select selected indices), a str (short_answer
@@ -167,6 +168,7 @@ class ChapterOut(BaseModel):
 
 
 class CourseDetailOut(BaseModel):
+    preparation: PreparationOut | None = None
     id: int
     slug: str
     title: str

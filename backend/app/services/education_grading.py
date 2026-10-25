@@ -76,9 +76,13 @@ Return JSON: {"criteria":[{"id":"criterion_1","score":0,"evidence":"","feedback"
                 note='Automated rubric review by two models, with conservative consensus. Code is inspected, not executed. You can appeal for instructor review.')
 
 
-def practice_payload(attempt, lesson, exercise):
+def practice_payload(attempt, lesson, exercise, *, db=None):
+    context=lesson.content_markdown
+    if db is not None:
+        from app.services.preparation import render_preparation
+        context,_=render_preparation(db,lesson,context,list(lesson.content_blocks or []))
     return dict(title=lesson.title,case=exercise['scenario'],task=exercise['reflection_prompt'],
-                reference=exercise['reference'],lesson_context=lesson.content_markdown[:20000],update_sources=exercise.get('update_sources',[]),report=attempt.reflection,
+                reference=exercise['reference'],lesson_context=context[:20000],update_sources=exercise.get('update_sources',[]),report=attempt.reflection,
                 rubric=[dict(id=f'criterion_{i+1}',description=text) for i,text in enumerate(exercise['rubric'])],
                 benchmark=dict(checks=dict(decisions_correct=attempt.score==100),metrics=dict(decision_score=attempt.score)),
                 course_id=lesson.course_id)

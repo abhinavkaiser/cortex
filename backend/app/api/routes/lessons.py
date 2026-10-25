@@ -2,6 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from app.schemas.preparation import PreparationOut
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -13,6 +14,7 @@ router = APIRouter(prefix="/api/lessons", tags=["lessons"])
 
 
 class LessonDetailOut(BaseModel):
+    preparation: PreparationOut | None = None
     id: int
     title: str
     content_markdown: str
@@ -41,7 +43,9 @@ def get_lesson(lesson_id: int, user: User = Depends(get_current_user), db: Sessi
 
     from app.services.education_curriculum import served_content
     markdown, blocks = served_content(db, lesson)
+    from app.services.preparation import public_preparation
     return LessonDetailOut(
+        preparation=public_preparation(db,lesson_id=lesson.id),
         id=lesson.id,
         title=lesson.title,
         content_markdown=markdown,

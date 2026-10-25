@@ -6,6 +6,7 @@ import {API_URL} from '@/lib/api';
 import {studio,type Assessment,type Benchmark,type ProjectDetail} from '@/lib/studio';
 import {AssessmentFeedback} from '@/components/learning/AssessmentFeedback';
 import {PromptExperiment} from '@/components/learning/PromptExperiment';
+import {PreparationCard} from '@/components/learning/PreparationCard';
 import {EvidenceCheck} from '@/components/learning/EvidenceCheck';
 
 export default function ProjectPage(){
@@ -46,6 +47,7 @@ export default function ProjectPage(){
    <Link href="/dashboard/projects" className="text-sm text-brand">← Projects</Link>
    <p className="mt-4 text-xs uppercase tracking-wide text-brand">{project.audience}</p><h1 className="mt-2 text-3xl font-semibold">{project.title}</h1>
    <p className="mt-3 text-sm leading-relaxed text-ink-muted">{project.brief}</p>
+   <PreparationCard preparation={project.preparation} />
    <section className="mt-6 rounded-xl border border-line p-5"><h2 className="font-semibold">Your evidence pack</h2><p className="mt-2 whitespace-pre-line text-sm leading-relaxed">{project.evidence}</p><a href={`${API_URL}/api/learning/lab-pack`} className="mt-3 inline-block text-sm text-brand underline">Download runnable code, datasets and tests</a></section>
    {!baseline||showBaseline?<><EvidenceCheck skill={project.skill} phase="baseline" onComplete={()=>{setShowBaseline(true);load().catch(()=>{});}}/>{baseline&&<button onClick={()=>setShowBaseline(false)} className="mt-3 text-sm text-brand underline">Continue to the project →</button>}</>:<p className="mt-4 text-sm">Starting check: {project.evidence_check.baseline}% · Original transfer: {project.evidence_check.transfer??'not taken'}{project.evidence_check.transfer!==null?'%':''}</p>}
    <div className="mt-8 flex flex-wrap gap-2">{project.milestones.map(m=><button key={m.index} onClick={()=>{setSelected(m.index);setPreview(null);}} aria-pressed={m.index===selected} className={`rounded-lg border px-3 py-2 text-sm ${selected===m.index?'border-brand bg-brand text-white':'border-line'}`}>{m.index+1}. {m.title}{m.passed?' ✓':''}</button>)}</div>

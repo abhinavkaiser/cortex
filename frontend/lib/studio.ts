@@ -1,3 +1,4 @@
+import type {Preparation} from "./types";
 import { request } from './api';
 
 export interface Assessment {
@@ -18,6 +19,7 @@ export interface ProjectSummary {
   version:string; milestones_passed:number; milestones_total:number; completed:boolean;
 }
 export interface ProjectDetail extends ProjectSummary {
+  preparation?:Preparation|null;
   evidence:string; evidence_check:EvidenceState;
   milestones:{index:number;title:string;task:string;starter:Record<string,unknown>;rubric:{id:string;description:string}[];
     reading:{id:number;title:string}[];passed:boolean;draft:{artifact:string;report:string;updated_at:string}|null;

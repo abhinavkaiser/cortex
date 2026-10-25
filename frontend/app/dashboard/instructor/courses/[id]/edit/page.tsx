@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { api } from "@/lib/api";
+import { PreparationEditor } from "@/components/learning/PreparationEditor";
+import { api,request } from "@/lib/api";
 import type { Chapter, CourseDetail, CourseSummary, LessonBlock, LessonDetail, PendingAttempt, QuizQuestionInput, RosterRow } from "@/lib/types";
 
 // Chapters and lessons are now edit-after-create + reorderable (PATCH
@@ -297,13 +298,13 @@ function EditLessonForm({
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api.getLesson(lessonId).then((l) => {
+    request<LessonDetail>(`/api/courses/${courseId}/lessons/${lessonId}/source`).then((l) => {
       setLesson(l);
       setContent(l.content_markdown);
       setMinutes(l.estimated_minutes);
       setBlocks(l.content_blocks as LessonBlock[]);
     });
-  }, [lessonId]);
+  }, [courseId,lessonId]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -726,6 +727,7 @@ export default function EditCoursePage() {
   const [roster, setRoster] = useState<RosterRow[] | null>(null);
   const [error, setError] = useState("");
   const [publishing, setPublishing] = useState(false);
+  const [publishError,setPublishError]=useState("");
   const [editingChapterId, setEditingChapterId] = useState<number | null>(null);
   const [editingLesson, setEditingLesson] = useState<{ moduleId: number; lessonId: number } | null>(null);
   const [dragChapterIndex, setDragChapterIndex] = useState<number | null>(null);
@@ -757,11 +759,11 @@ export default function EditCoursePage() {
 
   async function togglePublish() {
     if (!summary) return;
-    setPublishing(true);
+    setPublishing(true);setPublishError("");
     try {
       await api.updateCourse(courseId, { is_published: !summary.is_published });
       await load();
-    } finally {
+    } catch(e) {setPublishError(e instanceof Error?e.message:"Publication could not be changed.");} finally {
       setPublishing(false);
     }
   }
@@ -825,6 +827,9 @@ export default function EditCoursePage() {
         </button>
         <span className="text-xs text-ink-muted">Leave blank for certificates that never expire. Only affects certificates issued after this change.</span>
       </div>
+
+      {publishError&&<p role="alert" className="mt-4 text-sm text-red-700">{publishError}</p>}
+      <PreparationEditor courseId={courseId} courseSlug={detail.slug} preparation={detail.preparation} onSaved={load} />
 
       <h2 className="mt-10 text-lg font-semibold text-ink">Chapters</h2>
       <div className="mt-4 space-y-6">

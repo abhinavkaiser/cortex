@@ -43,3 +43,4 @@ from app.models.education import LearningStudyAssignment  # noqa: F401
 from app.models.education import AmendmentAttempt  # noqa: F401
 from app.models.education import ProjectExperiment  # noqa: F401
 from app.models.education import ProjectDraft  # noqa: F401
+from app.models.preparation import PreparationProfile  # noqa: F401

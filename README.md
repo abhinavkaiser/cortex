@@ -56,13 +56,27 @@ Each lesson has a worked case, two decision checks with answer-specific feedback
 a written exercise assessed by the existing grading service, and primary technical
 references. The course teaches calculations, implementation choices and experiment
 plans; no GPU lab or executed fine-tuning result is claimed. It is also part of the
-guided path, bringing the authored unit count to 35. Source topics link these new
+guided path, bringing that release’s authored unit count to 35. Source topics link these new
 lessons to the existing reviewed-update pipeline.
 
 Publish with `python scripts/publish_embeddings_path.py --apply` from `backend/`
 after a consistent backup. Without `--apply`, changes roll back. The publisher
 preserves attempts, snapshots revised teaching and refuses unknown instructor edits.
 The production release workflow validates and publishes this pack automatically.
+
+## Prerequisite preparation
+
+Every published course and lesson has an audited preparation profile with links to
+published resources. Three beginner courses add 22 lessons on Python/software,
+mathematics and probability/statistics, bringing the guided path to 57 units.
+Nontechnical roles receive focused preparation links; technical courses build on
+the full bridge route. The research lesson/project circular prerequisite is removed.
+
+Course publishing checks missing or hidden targets and circular course/lesson
+relationships. Prerequisite metadata is separate from teaching versions, preserving
+existing practice and source amendments. Owners declare or update preparation in
+the course editor. See [.github/PREREQUISITES_RELEASE.md](.github/PREREQUISITES_RELEASE.md)
+for publication, verification and preservation details.
 
 ## Stack
 

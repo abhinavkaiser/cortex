@@ -36,6 +36,13 @@ def visible_lesson(db, lesson_id, user):
     return lesson
 
 
+@router.get('/prerequisite-status')
+def prerequisite_status(user:User=Depends(get_current_user),db:Session=Depends(get_db)):
+    from app.services.preparation import audit
+    result=audit(db)
+    return dict(verified=result['verified'],courses=result['courses'],lessons=result['lessons'],unavailable_or_undeclared=len(result['errors']),cycles=len(result['cycles']))
+
+
 @router.get("/path")
 def path(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     units = db.query(LearningUnit).order_by(LearningUnit.position).all()
@@ -85,7 +92,7 @@ def submit(lesson_id: int, body: PracticeSubmission, user: User = Depends(get_cu
     db.add(attempt)
     db.flush()
     enqueue(db,key=f'practice:{attempt.id}',kind='practice',user_id=user.id,subject_id=attempt.id,version=unit.version,
-            payload=practice_payload(attempt,lesson,unit.exercise))
+            payload=practice_payload(attempt,lesson,unit.exercise,db=db))
     db.commit()
     db.refresh(attempt)
     return attempt_result(attempt, unit, db)

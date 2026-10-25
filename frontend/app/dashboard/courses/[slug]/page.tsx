@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import type { CourseDetail } from "@/lib/types";
+import { PreparationCard } from "@/components/learning/PreparationCard";
 import { formatDuration } from "@/lib/format";
 
 export default function CourseDetailPage() {
@@ -59,6 +60,8 @@ export default function CourseDetailPage() {
           </button>
         )}
       </div>
+
+      <PreparationCard preparation={course.preparation} />
 
       {course.enrolled && (
         <div className="mt-6">

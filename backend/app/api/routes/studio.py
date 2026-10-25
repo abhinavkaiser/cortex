@@ -122,7 +122,8 @@ def project_detail(slug:str,user:User=Depends(get_current_user),db:Session=Depen
     milestones=project_progress(db,user,spec)
     for milestone in milestones:
         milestone['reading']=[dict(id=readings[key].id,title=readings[key].title) for key in milestone['reading'] if key in readings]
-    return {key:spec[key] for key in ['slug','title','audience','hours','skill','brief','evidence','course']} | dict(version=project_version(spec),milestones=milestones,milestones_passed=sum(item['passed'] for item in milestones),milestones_total=len(milestones),completed=course_project_passed(db,user.id,spec['course']),evidence_check=evidence_state(db,user.id,spec['skill']))
+    from app.services.preparation import public_preparation
+    return {key:spec[key] for key in ['slug','title','audience','hours','skill','brief','evidence','course']} | dict(preparation=public_preparation(db,course_id=course.id),version=project_version(spec),milestones=milestones,milestones_passed=sum(item['passed'] for item in milestones),milestones_total=len(milestones),completed=course_project_passed(db,user.id,spec['course']),evidence_check=evidence_state(db,user.id,spec['skill']))
 
 
 @router.post('/projects/{slug}/submissions',status_code=202)
@@ -182,7 +183,7 @@ def request_feedback(attempt_id:int,user:User=Depends(get_current_user),db:Sessi
     if not unit:raise HTTPException(404,'Practice not found')
     unit=effective_unit(db,unit)
     if unit.version!=attempt.version or unit_status(unit,lesson)=='changed_since_review':raise HTTPException(409,'Submit a current practice attempt before requesting feedback')
-    job=enqueue(db,key=f'practice:{attempt.id}',kind='practice',user_id=user.id,subject_id=attempt.id,version=unit.version,payload=practice_payload(attempt,lesson,unit.exercise))
+    job=enqueue(db,key=f'practice:{attempt.id}',kind='practice',user_id=user.id,subject_id=attempt.id,version=unit.version,payload=practice_payload(attempt,lesson,unit.exercise,db=db))
     db.commit();return public_job(job)
 
 
