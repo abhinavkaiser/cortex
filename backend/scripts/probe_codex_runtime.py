@@ -10,6 +10,13 @@ if cache.exists():
     data=json.loads(cache.read_text())
     metadata=dict(available_models=[{key:item[key] for key in ['slug','display_name','supported_in_api','default_reasoning_level'] if key in item} for item in data.get('models',[])])
 else:metadata=dict(available_models=[])
+# Verify the installed CLI recognizes and applies the safety-critical toggles.
+controls=['shell_tool','view_image','apps','multi_agent','hooks']
+args=[claude_client.CODEX_BIN,'features','list']
+for key in controls:args+=['-c','features.'+key+'=false']
+features=claude_client.subprocess.run(args,capture_output=True,text=True,check=True)
+metadata['disabled_features']={line.split()[0]:line.split()[-1]=='false' for line in features.stdout.splitlines() if line.split() and line.split()[0] in controls}
+metadata['controls_verified']=all(metadata['disabled_features'].get(key) is True for key in controls)
 actual=claude_client.subprocess.run
 reports=[]
 SIGNALS=['unknown option','unrecognized','unknown field','unknown feature','not supported','not available','model_not_found','invalid model','not a valid','error loading config','failed to load','failed to read','read-only','permission denied','no such file','401','403','429','usage limit','rate limit','refresh token','not logged in','unsupported value','invalid value','unexpected argument','requires','invalid configuration','invalid type','failed to spawn','not found','unauthorized','authentication','server error']
