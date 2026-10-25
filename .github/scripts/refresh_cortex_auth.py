@@ -9,6 +9,10 @@ import pwd
 import shutil
 import subprocess
 import tempfile
+import time
+import urllib.request
+import urllib.error
+import re
 from datetime import datetime,timezone
 from pathlib import Path
 
@@ -39,6 +43,35 @@ def repair():
     staged=path.with_name('.credentials.refresh-pending')
     staged.write_text(json.dumps(data));staged.chmod(0o600);os.chown(staged,user.pw_uid,user.pw_gid);staged.replace(path)
     after=probe()
+    if not after['ready'] and after['expired']:
+        # The endpoint and public client identifier are the installed official
+        # CLI's production OAuth configuration. Reuse only the existing grant;
+        # never request broader scopes or send credentials to another host.
+        current=json.loads(path.read_text());grant=current.get('claudeAiOauth',{})
+        refresh=grant.get('refreshToken')
+        if not refresh:return dict(**result,status='interactive_sign_in_required',final_probe=after)
+        client=grant.get('clientId')
+        if not isinstance(client,str) or not re.fullmatch('[a-fA-F0-9-]{36}',client):client='9d1c250a-e61b-44d9-88ed-5944d1962f5e'
+        payload=dict(grant_type='refresh_token',refresh_token=refresh,client_id=client)
+        scopes=grant.get('scopes')
+        if isinstance(scopes,list) and scopes and all(isinstance(s,str) for s in scopes):payload['scope']=' '.join(scopes)
+        request=urllib.request.Request('https://platform.claude.com/v1/oauth/token',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json'},method='POST')
+        try:
+            with urllib.request.urlopen(request,timeout=30) as response:tokens=json.load(response)
+        except urllib.error.HTTPError as error:
+            try:detail=json.loads(error.read())
+            except ValueError:detail={}
+            code=detail.get('error')
+            safe_code=code if code in {'invalid_grant','invalid_request','unauthorized_client','invalid_scope','access_denied'} else 'refresh_rejected'
+            return dict(**result,status='interactive_sign_in_required',refresh_http_status=error.code,refresh_error=safe_code,final_probe=after)
+        if not isinstance(tokens.get('access_token'),str) or type(tokens.get('expires_in')) not in (int,float):
+            return dict(**result,status='invalid_refresh_response',final_probe=after)
+        grant['accessToken']=tokens['access_token']
+        if tokens.get('refresh_token'):grant['refreshToken']=tokens['refresh_token']
+        grant['expiresAt']=int((time.time()+tokens['expires_in'])*1000)
+        if isinstance(tokens.get('scope'),str):grant['scopes']=tokens['scope'].split()
+        staged.write_text(json.dumps(current));staged.chmod(0o600);os.chown(staged,user.pw_uid,user.pw_gid);staged.replace(path)
+        after=probe()
     return dict(**result,status='ready' if after['ready'] else 'refresh_failed',final_probe=after)
 
 
