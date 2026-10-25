@@ -236,7 +236,7 @@ if __name__ == '__main__':
             notice('Learning release failure', dict(error=str(error), kind=type(error).__name__))
             raise
     else:
-        # Validate the existing account refresh before testing live model controls.
+        # Verify the existing account and supported OAuth token hosts before calibration.
         notice('Education authentication repair',json.loads(run('python3',str(CHECKOUT / '.github/scripts/refresh_cortex_auth.py'))))
         auth_reports=[]
         for flags in [[], ['--setting-sources','']]:

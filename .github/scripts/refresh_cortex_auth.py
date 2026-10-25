@@ -55,15 +55,30 @@ def repair():
         payload=dict(grant_type='refresh_token',refresh_token=refresh,client_id=client)
         scopes=grant.get('scopes')
         if isinstance(scopes,list) and scopes and all(isinstance(s,str) for s in scopes):payload['scope']=' '.join(scopes)
-        request=urllib.request.Request('https://platform.claude.com/v1/oauth/token',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json'},method='POST')
+        request=urllib.request.Request('https://platform.claude.com/v1/oauth/token',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json','User-Agent':'claude-cli/2.1.310 (external, cli)'},method='POST')
         try:
             with urllib.request.urlopen(request,timeout=30) as response:tokens=json.load(response)
         except urllib.error.HTTPError as error:
-            try:detail=json.loads(error.read())
+            body=error.read()
+            try:detail=json.loads(body)
             except ValueError:detail={}
-            code=detail.get('error')
-            safe_code=code if code in {'invalid_grant','invalid_request','unauthorized_client','invalid_scope','access_denied'} else 'refresh_rejected'
-            return dict(**result,status='interactive_sign_in_required',refresh_http_status=error.code,refresh_error=safe_code,final_probe=after)
+            if error.code==403:
+                # Compatibility with the older official CLI token host. This is
+                # the same provider/client/grant, not a new credential destination.
+                legacy=urllib.request.Request('https://console.anthropic.com/v1/oauth/token',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json','User-Agent':'claude-cli/2.1.310 (external, cli)'},method='POST')
+                try:
+                    with urllib.request.urlopen(legacy,timeout=30) as response:tokens=json.load(response)
+                except urllib.error.HTTPError as legacy_error:
+                    raw=legacy_error.read()
+                    try:legacy_detail=json.loads(raw)
+                    except ValueError:legacy_detail={}
+                    code=legacy_detail.get('error')
+                    safe_code=code if isinstance(code,str) and code in {'invalid_grant','invalid_request','unauthorized_client','invalid_scope','access_denied'} else 'refresh_rejected'
+                    return dict(**result,status='interactive_sign_in_required',refresh_http_status=legacy_error.code,refresh_error=safe_code,response_json=bool(legacy_detail),response_html=b'<html' in raw.lower(),final_probe=after)
+            else:
+                code=detail.get('error')
+                safe_code=code if isinstance(code,str) and code in {'invalid_grant','invalid_request','unauthorized_client','invalid_scope','access_denied'} else 'refresh_rejected'
+                return dict(**result,status='interactive_sign_in_required',refresh_http_status=error.code,refresh_error=safe_code,response_json=bool(detail),final_probe=after)
         if not isinstance(tokens.get('access_token'),str) or type(tokens.get('expires_in')) not in (int,float):
             return dict(**result,status='invalid_refresh_response',final_probe=after)
         grant['accessToken']=tokens['access_token']
