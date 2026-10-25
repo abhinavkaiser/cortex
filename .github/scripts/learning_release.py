@@ -224,8 +224,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     python, report = preflight()
     if args.calibrate:
-        output = run('runuser', '-u', 'cortexapp', '--', str(python), 'scripts/validate_education_models.py', cwd=CHECKOUT / 'backend')
-        notice('Education grader calibration', json.loads(output))
+        calibration = subprocess.run(['runuser', '-u', 'cortexapp', '--', str(python), 'scripts/validate_education_models.py'], cwd=CHECKOUT / 'backend', capture_output=True, text=True)
+        try: result = json.loads(calibration.stdout)
+        except ValueError: result = dict(passed=False, error='Calibration process failed before reporting')
+        notice('Education grader calibration', result)
+        if calibration.returncode: raise RuntimeError('Education model calibration did not pass')
     elif args.deploy:
         try:
             deploy(python, report)

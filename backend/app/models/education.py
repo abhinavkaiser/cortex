@@ -57,6 +57,7 @@ class EvidenceAttempt(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), index=True)
     skill: Mapped[str] = mapped_column(String(80), index=True)
     phase: Mapped[str] = mapped_column(String(30))
+    snapshot: Mapped[dict] = mapped_column(JSON)
     variant: Mapped[int]
     answers: Mapped[list] = mapped_column(JSON)
     score: Mapped[int]

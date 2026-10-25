@@ -21,10 +21,15 @@ CONTROLS=[
 def calibrate():
     results=[]
     for name,expected,report in CONTROLS:
-        result=assess(dict(title='Refund analysis control',case='Before 100/1000, after 120/2000; no causal allocation supplied.',
-                           task='Calculate rates, correct the causal claim and propose a comparison.',report=report,rubric=RUBRIC,
-                           benchmark=dict(checks={},metrics={})))
-        results.append(dict(control=name,expected_pass=expected,observed_pass=result['passed'],score=result['score'],status=result['status'],correct=result['passed']==expected))
+        try:
+            result=assess(dict(title='Refund analysis control',case='Before 100/1000, after 120/2000; no causal allocation supplied.',
+                               task='Calculate rates, correct the causal claim and propose a comparison.',report=report,rubric=RUBRIC,
+                               benchmark=dict(checks={},metrics={})))
+            results.append(dict(control=name,expected_pass=expected,observed_pass=result['passed'],score=result['score'],status=result['status'],correct=result['passed']==expected))
+        except Exception as error:
+            message=str(error).lower()
+            code='authentication' if 'not logged in' in message or 'authentication' in message else 'model_unavailable' if 'model' in message and ('not found' in message or 'not available' in message) else 'unsupported_flag' if 'unknown option' in message else 'unanchored_evidence' if 'anchored' in message else 'invalid_response'
+            results.append(dict(control=name,correct=False,error_type=type(error).__name__,error_code=code))
     return dict(passed=all(item['correct'] for item in results),models=list(MODELS),checked_at=datetime.utcnow().isoformat(),results=results)
 
 
