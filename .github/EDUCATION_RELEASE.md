@@ -65,10 +65,14 @@ checks passed. Browser validation passed registration, all 21 path units, the
 pending-grade completion gate, six project listings, a baseline check, draft
 autosave/reload, a recorded development experiment, outcomes and mobile layout.
 It did not simulate or validate model grading. Workspace reports retain the script
-and screenshots. [Server validation run](https://github.com/abhinavkaiser/cortex/actions/runs/40173684090)
-recorded the earlier Claude login failure. Production remains on `5dda923`. The
-Codex replacement requires its own subscription sign-in and real calibration before
-deployment. No successful live grading is claimed yet.
+and screenshots. On 2026-10-25 the app-owned ChatGPT subscription was verified on
+Hetzner. Both configured models (`gpt-6-luna`, `gpt-6.1-sol`) passed fixed-prompt
+connection checks with safety-critical tool toggles verified against the installed
+CLI. [Live grading calibration](https://github.com/abhinavkaiser/cortex/actions/runs/40183943238)
+passed all four controls: supported work 83%, empty work 0%, injection 0%, incorrect
+calculations 0%. Each control was reviewed by both models. Production deployment
+runs these controls again before switching the application.
+
 
 Two models from the same provider are fallible correlated reviewers, not independent
 accreditation. Source quote verification and a second review reduce unsupported

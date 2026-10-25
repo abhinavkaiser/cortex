@@ -40,8 +40,8 @@ credit. Unsupported updates stay unpublished, and instructors can withdraw addit
 Older catalog lessons still identify their review status.
 
 See [.github/EDUCATION_RELEASE.md](.github/EDUCATION_RELEASE.md) for calibration,
-publication, backup, deployment and limitations. The advanced release is prepared;
-production grading verification requires the server's ChatGPT subscription sign-in.
+publication, backup, deployment and limitations. The server uses its own ChatGPT subscription login; live grading calibration
+has passed the supported, empty, injection and incorrect-calculation controls.
 See [the learning pilot protocol](docs/learning-pilot.md) for real outcome validation.
 
 ## Stack
