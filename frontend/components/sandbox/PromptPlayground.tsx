@@ -7,7 +7,7 @@ import { ParamControls } from "./ParamControls";
 import { TokenCostMeter } from "./TokenCostMeter";
 
 const DEFAULT_PARAMS = {
-  model: "sonnet",
+  model: "gpt-5.4",
   temperature: 0.7,
   top_p: 0.95,
   max_output_tokens: 1024,

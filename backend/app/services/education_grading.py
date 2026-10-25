@@ -3,7 +3,9 @@ import json
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from app.services import claude_client
 
-MODELS = ('haiku', 'sonnet')
+from app.core.config import get_settings
+
+MODELS = (get_settings().codex_fast_model, get_settings().codex_model)
 GRADING_PROTOCOL = 'rubric-evidence-v1'
 
 
@@ -61,7 +63,7 @@ Return JSON: {"criteria":[{"id":"criterion_1","score":0,"evidence":"","feedback"
                 break
             except ValueError:
                 if validation_attempt: raise
-        reviews.append(dict(model=model, resolved_models=getattr(raw,'model_ids',[]), criteria=[by_id[key].model_dump() for key in expected],summary=review.summary,next_steps=review.next_steps))
+        reviews.append(dict(model=model, reported_models=getattr(raw,'model_ids',[]), criteria=[by_id[key].model_dump() for key in expected],summary=review.summary,next_steps=review.next_steps))
     score = round(100 * sum(min(a['score'], b['score']) for a,b in zip(reviews[0]['criteria'],reviews[1]['criteria'])) / (4*len(rubric)))
     disagreement = max(abs(a['score']-b['score']) for a,b in zip(reviews[0]['criteria'],reviews[1]['criteria'])) >= 3
     checks = payload.get('benchmark',{}).get('checks',{})
@@ -70,7 +72,7 @@ Return JSON: {"criteria":[{"id":"criterion_1","score":0,"evidence":"","feedback"
     passed=score>=75 and minimum_met and benchmark_passed and not disagreement
     return dict(score=score,passed=passed,status='needs_review' if disagreement else 'graded',reviews=reviews,
                 benchmark=payload.get('benchmark',{}),benchmark_passed=benchmark_passed,
-                protocol=GRADING_PROTOCOL,models=list(MODELS),resolved_model_ids=sorted({identifier for review in reviews for identifier in review['resolved_models']}),
+                protocol=GRADING_PROTOCOL,models=list(MODELS),reported_model_ids=sorted({identifier for review in reviews for identifier in review['reported_models']}),
                 note='Automated rubric review by two models, with conservative consensus. Code is inspected, not executed. You can appeal for instructor review.')
 
 

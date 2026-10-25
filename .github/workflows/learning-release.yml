@@ -6,6 +6,10 @@ on:
     paths: [.github/workflows/learning-release.yml, .github/scripts/learning_release.py, backend/content/source_checks.json]
   workflow_dispatch:
     inputs:
+      prepare_codex:
+        description: Install the app-only Codex subscription runtime and inspect sign-in
+        type: boolean
+        default: false
       deploy:
         description: Deploy the reviewed learning release
         type: boolean
@@ -27,12 +31,15 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Prepare Codex subscription runtime
+        if: ${{ inputs.prepare_codex }}
+        run: python3 .github/scripts/setup_codex_runtime.py
       - name: Inspect production and content references
-        if: ${{ !inputs.deploy }}
+        if: ${{ !inputs.deploy && !inputs.prepare_codex }}
         run: python3 .github/scripts/learning_release.py
       - name: Calibrate constrained education models
-        if: ${{ !inputs.deploy && github.ref == 'refs/heads/codex/complete-learning' }}
+        if: ${{ !inputs.deploy && !inputs.prepare_codex && github.ref == 'refs/heads/codex/complete-learning' }}
         run: python3 .github/scripts/learning_release.py --calibrate
       - name: Deploy reviewed release
-        if: ${{ inputs.deploy && github.ref == 'refs/heads/main' }}
+        if: ${{ inputs.deploy && !inputs.prepare_codex && github.ref == 'refs/heads/main' }}
         run: python3 .github/scripts/learning_release.py --deploy

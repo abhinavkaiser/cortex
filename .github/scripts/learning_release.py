@@ -272,25 +272,12 @@ if __name__ == '__main__':
             notice('Learning release failure', dict(error=str(error), kind=type(error).__name__))
             raise
     else:
-        # Verify the existing account and supported OAuth token hosts before calibration.
-        notice('Education authentication repair',json.loads(run('python3',str(CHECKOUT / '.github/scripts/refresh_cortex_auth.py'))))
-        auth_reports=[]
-        for flags in [[], ['--setting-sources','']]:
-            auth=subprocess.run(['runuser','-u','cortexapp','--','claude',*flags,'auth','status','--json'],capture_output=True,text=True)
-            try:
-                state=json.loads(auth.stdout)
-                auth_reports.append(dict(settings_disabled=bool(flags),logged_in=state.get('loggedIn'),method=state.get('authMethod'),key_source=state.get('apiKeySource')))
-            except ValueError:auth_reports.append(dict(settings_disabled=bool(flags),exit=auth.returncode))
-        notice('Education authentication metadata', auth_reports)
-        env_code='import os,json;print(json.dumps({"home":os.environ.get("HOME"),"configured":{k:bool(os.environ.get(k)) for k in ["ANTHROPIC_API_KEY","ANTHROPIC_AUTH_TOKEN","ANTHROPIC_BASE_URL","CLAUDE_CONFIG_DIR","CLAUDE_CODE_OAUTH_TOKEN"]}}))'
-        notice('Education caller configuration',json.loads(run('runuser','-u','cortexapp','--','python3','-c',env_code)))
-        auth_paths=[]
-        for path in [Path('/home/cortexapp'),Path('/home/cortexapp/.claude'),Path('/home/cortexapp/.claude/.credentials.json'),Path('/home/cortexapp/.claude.json')]:
-            if path.exists():auth_paths.append(dict(path=str(path),uid=path.stat().st_uid,mode=oct(path.stat().st_mode&0o777)))
-        notice('Education authentication file metadata',auth_paths)
-
-        help_text = run('runuser', '-u', 'cortexapp', '--', 'claude', '--help')
-        notice('Education model controls', {flag: flag in help_text for flag in ['--tools', '--strict-mcp-config', '--setting-sources', '--no-session-persistence', '--disable-slash-commands', '--permission-mode']})
+        binary='/opt/cortex-codex/node_modules/.bin/codex'
+        if Path(binary).exists():
+            auth=subprocess.run(['runuser','-u','cortexapp','--',binary,'login','status'],capture_output=True,text=True)
+            notice('Codex subscription authentication',dict(installed=True,subscription_login=auth.returncode==0 and 'chatgpt' in (auth.stdout+auth.stderr).lower()))
+        else:
+            notice('Codex subscription authentication',dict(installed=False,subscription_login=False))
         references = []
         for url in json.loads((CHECKOUT / 'backend/content/source_checks.json').read_text()):
             try:

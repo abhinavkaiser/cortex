@@ -300,21 +300,37 @@ def test_instructor_review_cannot_bypass_objective_failure(setup):
     assert client.post(f'/api/studio/jobs/{job.id}/review',json=body).status_code==422
 
 
-def test_model_adapter_disables_tools_and_records_actual_model(monkeypatch):
+def test_model_adapter_disables_tools_and_records_requested_model(monkeypatch):
     from types import SimpleNamespace
     from app.services import claude_client
     import os
     def process(args,**kwargs):
-        assert '--dangerously-skip-permissions' not in args
-        assert args[args.index('--tools')+1]==''
-        assert '--strict-mcp-config' in args and '--disable-slash-commands' in args
+        assert args[1]=='exec' and '--ignore-user-config' in args
+        assert args[args.index('--sandbox')+1]=='read-only'
+        assert 'approval_policy="never"' in args and 'features.shell_tool=false' in args
+        assert 'features.view_image=false' in args and 'web_search="disabled"' in args
+        assert '--ephemeral' in args and '--ignore-rules' in args
         assert kwargs['cwd']!=os.getcwd()
-        assert '--output-format' in args
-        return SimpleNamespace(returncode=0,stdout=json.dumps(dict(result='{"value":1}',modelUsage={'model-release-id':{}},is_error=False)),stderr='')
+        event=dict(type='item.completed',item=dict(type='agent_message',text='{"value":1}'))
+        return SimpleNamespace(returncode=0,stdout=json.dumps(event),stderr='')
     monkeypatch.setattr(claude_client.subprocess,'run',process)
     result=claude_client._spawn_claude('Evidence only','sonnet',structured_envelope=True)
-    assert result['model_ids']==['model-release-id'] and json.loads(result['text'])['value']==1
+    assert result['model_ids']==['gpt-5.4'] and json.loads(result['text'])['value']==1
     assert claude_client._schema_example(dict(properties=dict(check=dict(type='boolean'))))['check'] is False
+
+
+def test_subscription_runtime_rejects_tools_errors_and_unknown_models(monkeypatch):
+    from types import SimpleNamespace
+    from app.services import claude_client
+    monkeypatch.setattr(claude_client.subprocess,'run',lambda *a,**k: SimpleNamespace(returncode=0,stdout=json.dumps(dict(type='item.started',item=dict(type='command_execution',command='cat /etc/passwd'))),stderr=''))
+    with pytest.raises(RuntimeError,match='Unexpected tool use'):
+        claude_client._spawn_claude('Untrusted work','sonnet')
+    with pytest.raises(ValueError,match='Unsupported model'):
+        claude_client._spawn_claude('Untrusted work','arbitrary-provider-model')
+    monkeypatch.setattr(claude_client.subprocess,'run',lambda *a,**k: SimpleNamespace(returncode=1,stdout='',stderr='401 Authentication failure PRIVATE_ACCOUNT_DATA'))
+    with pytest.raises(RuntimeError,match='authentication') as error:
+        claude_client._spawn_claude('Work','sonnet')
+    assert 'PRIVATE_ACCOUNT_DATA' not in str(error.value)
 
 
 def test_daily_pulse_cannot_average_away_factual_failure(monkeypatch):
