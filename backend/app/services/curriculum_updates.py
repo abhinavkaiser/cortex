@@ -48,6 +48,14 @@ TOPICS = {
     "llm-preference-optimization": ["dpo", "preference", "reward model"],
     "llm-distillation": ["distillation", "teacher", "student model"],
     "llm-adapter-deployment": ["inference", "serving", "deployment"],
+    "python-api-contracts": ["api", "tool calling", "structured output"],
+    "python-environments": ["dependency", "reproducibility"],
+    "math-matrices": ["low-rank", "lora"],
+    "math-gradients": ["gradient", "backpropagation"],
+    "math-optimization": ["optimizer", "optimization"],
+    "stats-likelihood": ["cross-entropy", "likelihood"],
+    "stats-experiments-causality": ["experiment", "causal", "a/b"],
+    "stats-paired-comparisons": ["benchmark", "evaluation"],
 }
 
 

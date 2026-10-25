@@ -10,7 +10,7 @@ export default function ProjectsPage(){
    <p className="text-xs font-semibold uppercase tracking-wide text-brand">Choose your specialization</p>
    <h1 className="mt-2 text-3xl font-semibold">Build something you can defend</h1>
    <p className="mt-3 max-w-3xl text-ink-muted">Each project provides a case, evidence, development experiments, three assessed milestones and a transfer check. Submit your reasoning and implementation, inspect specific feedback and revise until you meet the rubric.</p>
-   <p className="mt-3 text-sm">New to AI? Complete the <Link href="/dashboard/learn" className="text-brand underline">foundation and technical bridge</Link> first. Experienced learners can use the baseline check to identify gaps.</p>
+   <p className="mt-3 text-sm">New to AI? Start with the <Link href="/dashboard/learn" className="text-brand underline">AI foundation</Link>, then follow the preparation links for your chosen project. Experienced learners can use the baseline check to identify gaps.</p>
    {error&&<p role="alert" className="mt-6 text-red-700">{error}</p>}
    {status&&(!status.worker_online||!status.grading_calibrated)&&<p className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">Assessment is currently paused or unavailable. You can prepare work and run development experiments. Submissions remain saved and cannot pass until verified grading completes.</p>}
    <div className="mt-8 grid gap-5 md:grid-cols-2">{projects.map(project=><article key={project.slug} className="rounded-2xl border border-line p-6">

@@ -7,6 +7,7 @@ import Link from "next/link";
 import type { LearningUnit } from "@/lib/learning";
 import { LessonPractice } from "@/components/learning/LessonPractice";
 import { LessonActivity } from "@/components/learning/LessonActivity";
+import { PreparationCard } from "@/components/learning/PreparationCard";
 import { PublishedAmendments } from "@/components/learning/PublishedAmendments";
 import { LessonUpdates } from "@/components/learning/LessonUpdates";
 import { api } from "@/lib/api";
@@ -210,12 +211,13 @@ export default function LessonPage() {
           <p className="mt-2 text-xs text-ink-muted">Content review: {unit.reviewed_on} · Next review due: {unit.review_due} · Version {unit.version.slice(0, 8)}</p>
           {unit.status !== "reviewed" && <p className="mt-2 text-amber-800">{unit.status === "changed_since_review" ? "This lesson changed after review. Practice is paused until it is reviewed again." : "The scheduled content review is due. Check changing claims against current primary sources."}</p>}
           <details className="mt-2"><summary className="cursor-pointer text-brand">Prerequisites and source references</summary>
-            <p className="mt-2">{unit.prerequisites}</p>
+            {!lesson.preparation && <p className="mt-2">{unit.prerequisites}</p>}
             <ul className="mt-2 list-disc pl-5">{unit.sources.map(source => <li key={source.url}><a href={source.url} target="_blank" rel="noreferrer" className="text-brand underline">{source.title} ↗</a></li>)}</ul>
             <p className="mt-2 text-xs text-ink-muted">References support the concepts taught here. A review date does not guarantee every external product or regulation is unchanged.</p>
           </details>
         </> : <p className="text-amber-800">This lesson has not yet received a dated content review or the revised practice format. Verify changing claims against primary sources.</p>}
       </div>
+      <PreparationCard preparation={lesson.preparation} />
       {unit && <div className="mt-6 flex gap-3" aria-label="Lesson view">
         <button aria-pressed={view === "practice"} onClick={() => setView("practice")} className={`rounded-lg border px-4 py-2 text-sm ${view === "practice" ? "border-brand bg-brand text-white" : "border-line"}`}>Try and revise</button>
         <button aria-pressed={view === "learn"} onClick={() => setView("learn")} className={`rounded-lg border px-4 py-2 text-sm ${view === "learn" ? "border-brand bg-brand text-white" : "border-line"}`}>Worked explanation</button>

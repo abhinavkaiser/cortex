@@ -46,9 +46,11 @@ def public_unit(unit, lesson, db, user_id):
               .order_by(PracticeAttempt.id.desc()).first())
     # Do not send answer keys or reference solutions before a submission.
     exercise = unit.exercise
+    from app.services.preparation import public_preparation
+    preparation=public_preparation(db,lesson_id=lesson.id)
     return {
         "presentation": presentation(user_id),
-        "version": unit.version, "objective": unit.objective, "prerequisites": unit.prerequisites,
+        "version": unit.version, "objective": unit.objective, "prerequisites": preparation["statement"] if preparation else unit.prerequisites,
         "sources": unit.sources, "reviewed_on": unit.reviewed_on, "review_due": unit.review_due,
         "status": unit_status(unit, lesson), "stage": unit.stage,
         "exercise": {"title": exercise["title"], "scenario": exercise["scenario"],

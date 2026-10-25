@@ -137,6 +137,7 @@ export interface LinkBlock {
 export type LessonBlock = TextBlock | CalloutBlock | CheckBlock | DiagramBlockType | CalculatorBlock | ImageBlock | VideoBlock | DocumentBlock | LinkBlock;
 
 export interface LessonDetail {
+  preparation?: Preparation | null;
   id: number;
   title: string;
   content_markdown: string;
@@ -311,6 +312,7 @@ export interface Chapter {
 }
 
 export interface CourseDetail {
+  preparation?: Preparation | null;
   id: number;
   slug: string;
   title: string;
@@ -450,4 +452,12 @@ export interface QuizQuestionInput {
   correct_index: number | null; // multiple_choice / true_false
   correct_indices: number[]; // multi_select
   sample_answer: string; // short_answer -- shown to the instructor grading it
+}
+
+
+export interface PreparationItem {
+  kind: 'course' | 'lesson'; slug: string; id: number; title: string; url: string;
+}
+export interface Preparation {
+  statement: string; beginner: boolean; items: PreparationItem[]; verified: boolean;
 }

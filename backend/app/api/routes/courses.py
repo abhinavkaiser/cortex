@@ -39,6 +39,9 @@ from app.schemas.course import (
     UploadOut,
 )
 from app.services.course_progress import course_progress_pct
+from app.services.preparation import public_preparation,require_ready,validate_targets
+from app.models.preparation import PreparationProfile
+from app.schemas.preparation import PreparationOut,PreparationWrite
 
 router = APIRouter(prefix="/api/courses", tags=["courses"])
 # Learner-facing deck reads live on their own resource path (a deck is
@@ -212,6 +215,7 @@ def get_course_detail(slug: str, user: User = Depends(get_current_user), db: Ses
         certificate_code = cert.certificate_code if cert else None
 
     return CourseDetailOut(
+        preparation=public_preparation(db,course_id=course.id),
         id=course.id,
         slug=course.slug,
         title=course.title,
@@ -229,6 +233,57 @@ def get_course_detail(slug: str, user: User = Depends(get_current_user), db: Ses
     )
 
 
+@router.get('/{course_id}/prerequisites/options')
+def preparation_options(course_id:int,user:User=Depends(get_current_user),db:Session=Depends(get_db)):
+    course=_get_course_or_404(db,course_id);_require_owner_or_admin(course,user)
+    from app.services.preparation import catalog_state
+    courses,lessons,_,_=catalog_state(db)
+    return dict(courses=[dict(slug=c.slug,title=c.title) for c in courses.values() if c.id!=course.id],
+                lessons=[dict(slug=l.slug,title=l.title,course_slug=next(c.slug for c in courses.values() if c.id==l.module.course_id)) for l in lessons.values()])
+
+
+def save_preparation(db,course,body,lesson=None):
+    field='lesson_id' if lesson else 'course_id';owner=lesson.id if lesson else course.id
+    profile=db.query(PreparationProfile).filter_by(**{field:owner}).first()
+    if profile is None:profile=PreparationProfile(**{field:owner});db.add(profile)
+    for key,value in body.model_dump().items():setattr(profile,key,value)
+    profile.managed_version=None
+    try:
+        validate_targets(db,profile,course.id);db.flush()
+        require_ready(db)
+    except ValueError as error:
+        db.rollback();raise HTTPException(409,str(error)) from error
+    db.commit()
+    # Draft owners can save metadata even though only published resources are
+    # exposed to learners; return their own explicit choices after validation.
+    result=public_preparation(db,lesson_id=lesson.id) if lesson else public_preparation(db,course_id=course.id)
+    if result is None:
+        result=dict(statement=profile.statement,beginner=profile.beginner,items=[],verified=True)
+    return result
+
+
+@router.get('/{course_id}/lessons/{lesson_id}/source')
+def lesson_source(course_id:int,lesson_id:int,user:User=Depends(get_current_user),db:Session=Depends(get_db)):
+    course=_get_course_or_404(db,course_id);_require_owner_or_admin(course,user)
+    lesson=db.get(Lesson,lesson_id)
+    if not lesson or lesson.module.course_id!=course.id:raise HTTPException(404,'Lesson not found in this course')
+    return dict(id=lesson.id,title=lesson.title,content_markdown=lesson.content_markdown,content_blocks=lesson.content_blocks,estimated_minutes=lesson.estimated_minutes,completed=False,module_title=lesson.module.title,preparation=public_preparation(db,lesson_id=lesson.id))
+
+
+@router.put('/{course_id}/prerequisites',response_model=PreparationOut)
+def set_course_preparation(course_id:int,body:PreparationWrite,user:User=Depends(get_current_user),db:Session=Depends(get_db)):
+    course=_get_course_or_404(db,course_id);_require_owner_or_admin(course,user)
+    return save_preparation(db,course,body)
+
+
+@router.put('/{course_id}/lessons/{lesson_id}/prerequisites',response_model=PreparationOut)
+def set_lesson_preparation(course_id:int,lesson_id:int,body:PreparationWrite,user:User=Depends(get_current_user),db:Session=Depends(get_db)):
+    course=_get_course_or_404(db,course_id);_require_owner_or_admin(course,user)
+    lesson=db.get(Lesson,lesson_id)
+    if not lesson or lesson.module.course_id!=course.id:raise HTTPException(404,'Lesson not found in this course')
+    return save_preparation(db,course,body,lesson)
+
+
 @router.patch("/{course_id}", response_model=CourseSummary)
 def update_course(course_id: int, body: CourseUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     course = _get_course_or_404(db, course_id)
@@ -242,6 +297,11 @@ def update_course(course_id: int, body: CourseUpdate, user: User = Depends(get_c
         course.category = body.category
     if body.is_published is not None:
         course.is_published = body.is_published
+        db.flush()
+        try:require_ready(db)
+        except ValueError as error:
+            db.rollback()
+            raise HTTPException(409,str(error)) from error
     if body.certificate_validity_days is not None:
         # 0 means "clear it back to never-expires" -- the UI sends null to
         # leave unchanged and an explicit 0 to clear, since Pydantic can't
@@ -354,7 +414,15 @@ def create_course_lesson(
         order_index=body.order_index,
         estimated_minutes=body.estimated_minutes,
     )
-    db.add(lesson)
+    previous=(db.query(Lesson).join(Module).filter(Module.course_id==course.id)
+              .order_by(Module.order_index.desc(),Lesson.order_index.desc(),Lesson.id.desc()).first())
+    db.add(lesson);db.flush()
+    db.add(PreparationProfile(lesson_id=lesson.id,statement='Begin with the course preparation.' if previous is None else 'Prepare with: '+previous.title+'.',beginner=previous is None,course_slugs=[],lesson_slugs=[previous.slug] if previous else []))
+    db.flush()
+    if course.is_published:
+        try:require_ready(db)
+        except ValueError as error:
+            db.rollback();raise HTTPException(409,str(error)) from error
     db.commit()
     db.refresh(lesson)
     return CourseLessonOut(id=lesson.id, title=lesson.title, order_index=lesson.order_index, estimated_minutes=lesson.estimated_minutes, completed=False)
@@ -391,6 +459,11 @@ def update_course_lesson(
     if body.estimated_minutes is not None:
         lesson.estimated_minutes = body.estimated_minutes
 
+    db.flush()
+    if course.is_published:
+        try:require_ready(db)
+        except ValueError as error:
+            db.rollback();raise HTTPException(409,str(error)) from error
     db.commit()
     db.refresh(lesson)
     return CourseLessonOut(id=lesson.id, title=lesson.title, order_index=lesson.order_index, estimated_minutes=lesson.estimated_minutes, completed=False)
