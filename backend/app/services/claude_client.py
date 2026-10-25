@@ -52,21 +52,25 @@ def _spawn_claude(prompt: str, model: str | None, system_prompt: str = DEFAULT_S
         kind = "authentication expired or login required" if any(word in detail for word in ["401", "unauthorized", "not logged in", "refresh token", "authentication"]) else "capacity limit" if any(word in detail for word in ["usage limit", "rate limit", "429"]) else "model unavailable" if "model" in detail and any(word in detail for word in ["not supported", "not found", "not available", "model_not_found"]) else "provider unavailable"
         raise RuntimeError("Codex subscription: " + kind)
     messages=[]
+    completed=False
     for line in result.stdout.splitlines():
         if not line.strip():continue
         event=json.loads(line)
         if event.get("type") in {"error", "turn.failed"}:
             raise RuntimeError("Codex returned an unsuccessful response")
+        if event.get("type")=="turn.completed":completed=True
         item=event.get("item",{})
         if event.get("type") in {"item.started", "item.completed"}:
             # Any unexpected tool attempt invalidates the whole result. Shell,
             # browsing, images, MCP and agents are disabled; read-only sandbox
             # also prevents the remaining patch tool from changing files.
-            if item.get("type") not in {"agent_message", "reasoning"}:
+            # Codex emits startup notices as error items even on successful
+            # turns. They are not tool calls; fatal errors fail the turn/exit.
+            if item.get("type") not in {"agent_message", "reasoning", "error"}:
                 raise RuntimeError("Unexpected tool use in model-only runtime")
             if event["type"]=="item.completed" and item.get("type")=="agent_message":
                 messages.append(item["text"])
-    if not messages:raise RuntimeError("Codex returned no final answer")
+    if not completed or not messages:raise RuntimeError("Codex returned no completed final answer")
     text=messages[-1].strip()
     if structured_envelope:
         # exec JSON does not guarantee a resolved version identifier; retain the

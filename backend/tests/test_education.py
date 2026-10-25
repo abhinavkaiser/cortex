@@ -312,7 +312,7 @@ def test_model_adapter_disables_tools_and_records_requested_model(monkeypatch):
         assert '--ephemeral' in args and '--ignore-rules' in args
         assert kwargs['cwd']!=os.getcwd()
         event=dict(type='item.completed',item=dict(type='agent_message',text='{"value":1}'))
-        return SimpleNamespace(returncode=0,stdout=json.dumps(event),stderr='')
+        return SimpleNamespace(returncode=0,stdout='\n'.join(json.dumps(e) for e in [dict(type='item.completed',item=dict(type='error',message='Startup notice')),event,dict(type='turn.completed')]),stderr='')
     monkeypatch.setattr(claude_client.subprocess,'run',process)
     result=claude_client._spawn_claude('Evidence only','sonnet',structured_envelope=True)
     assert result['model_ids']==['gpt-6.1-sol'] and json.loads(result['text'])['value']==1
