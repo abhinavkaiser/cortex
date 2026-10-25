@@ -5,6 +5,11 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from app.services import claude_client
 from app.services.education_grading import MODELS
+cache=Path.home()/'.codex/models_cache.json'
+if cache.exists():
+    data=json.loads(cache.read_text())
+    metadata=dict(available_models=[{key:item[key] for key in ['slug','display_name','supported_in_api','default_reasoning_level'] if key in item} for item in data.get('models',[])])
+else:metadata=dict(available_models=[])
 actual=claude_client.subprocess.run
 reports=[]
 SIGNALS=['unknown option','unrecognized','unknown field','unknown feature','not supported','not available','model_not_found','invalid model','not a valid','error loading config','failed to load','failed to read','read-only','permission denied','no such file','401','403','429','usage limit','rate limit','refresh token','not logged in','unsupported value','invalid value','unexpected argument','requires','invalid configuration','invalid type','failed to spawn','not found','unauthorized','authentication','server error']
@@ -27,4 +32,4 @@ for model in MODELS:
     except Exception as error:
         if not reports or 'model' in reports[-1]:reports.append({})
         reports[-1].update(model=model,error_type=type(error).__name__,ready=False)
-print(json.dumps(reports))
+print(json.dumps(dict(**metadata,probes=reports)))
